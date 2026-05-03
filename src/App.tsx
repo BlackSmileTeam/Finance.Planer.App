@@ -217,6 +217,9 @@ function App() {
   /// <para>Loads initial reference data.</para>
   /// </summary>
   useEffect(() => {
+    if (!isAuthenticated) {
+      return;
+    }
     setIsBusy(true);
     Promise.all([
       financialApi.getCategories(),
@@ -260,12 +263,15 @@ function App() {
       })
       .catch((err) => setError(err.message))
       .finally(() => setIsBusy(false));
-  }, [selectedYear]);
+  }, [selectedYear, isAuthenticated]);
 
   /// <summary>
   /// <para>Loads month-specific data whenever selection changes.</para>
   /// </summary>
   useEffect(() => {
+    if (!isAuthenticated) {
+      return;
+    }
     if (activeTab === "finances" || activeTab === "planvsactual" || activeTab === "overview") {
       setIsBusy(true);
       Promise.all([
@@ -281,7 +287,7 @@ function App() {
         .catch((err) => setError(err.message))
         .finally(() => setIsBusy(false));
     }
-  }, [selectedYear, selectedMonth, activeTab]);
+  }, [selectedYear, selectedMonth, activeTab, isAuthenticated]);
 
   // Объединённый список счетов для расхода: банковские + кредитные карты (в одном поле «Счет»)
   type ExpenseAccountOption = { id: string; name: string; isCreditCard: boolean; currency: string; balance?: number };

@@ -95,9 +95,11 @@ export function Login({ onLogin }: LoginProps) {
                   placeholder="Введите пароль"
                 />
               </label>
-              <button onClick={handleLogin} disabled={isBusy}>
-                {isBusy ? "Вход..." : "Войти"}
-              </button>
+              <div style={{ display: "flex", justifyContent: "center", marginTop: "0.5rem" }}>
+                <button type="button" onClick={handleLogin} disabled={isBusy}>
+                  {isBusy ? "Вход..." : "Войти"}
+                </button>
+              </div>
               <p style={{ textAlign: "center", marginTop: "1rem" }}>
                 Нет аккаунта?{" "}
                 <button
@@ -154,9 +156,11 @@ export function Login({ onLogin }: LoginProps) {
                   placeholder="Введите полное имя"
                 />
               </label>
-              <button onClick={handleRegister} disabled={isBusy}>
-                {isBusy ? "Регистрация..." : "Зарегистрироваться"}
-              </button>
+              <div style={{ display: "flex", justifyContent: "center", marginTop: "0.5rem" }}>
+                <button type="button" onClick={handleRegister} disabled={isBusy}>
+                  {isBusy ? "Регистрация..." : "Зарегистрироваться"}
+                </button>
+              </div>
               <p style={{ textAlign: "center", marginTop: "1rem" }}>
                 Уже есть аккаунт?{" "}
                 <button
