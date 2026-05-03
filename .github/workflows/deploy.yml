@@ -1,0 +1,201 @@
+# Деплой без Docker Hub: build → docker save → SCP → docker load.
+# Секреты: PROD_HOST, PROD_USER, PROD_SSH_PRIVATE_KEY, PROD_SSH_PORT, VITE_API_URL
+
+name: Deploy Web
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-financial-planner-web
+  cancel-in-progress: true
+
+env:
+  DOCKERFILE_PATH: Dockerfile
+  BUILD_CONTEXT: .
+  CONTAINER_PORT: 80
+  HOST_PORT: 55666
+  DEPLOY_DIR: /opt/financial-planner-web
+  IMAGE_NAME: financial-planner-web
+  CONTAINER_NAME: financial-planner-web
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate secrets and SSH
+        run: |
+          if [ -z "${{ secrets.PROD_HOST }}" ]; then echo "Missing secret: PROD_HOST"; exit 1; fi
+          if [ -z "${{ secrets.PROD_USER }}" ]; then echo "Missing secret: PROD_USER"; exit 1; fi
+          if [ -z "${{ secrets.PROD_SSH_PRIVATE_KEY }}" ]; then echo "Missing secret: PROD_SSH_PRIVATE_KEY"; exit 1; fi
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          P="${{ secrets.PROD_SSH_PORT }}"
+          P="${P:-22}"
+          ssh-keyscan -p "$P" "${{ secrets.PROD_HOST }}" >> ~/.ssh/known_hosts
+          echo "SSH key validated successfully"
+        env:
+          SSH_KEY: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
+
+  test-connection:
+    needs: validate
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'workflow_dispatch' || success() }}
+    steps:
+      - name: Test SSH connection
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.PROD_HOST }}
+          port: ${{ secrets.PROD_SSH_PORT }}
+          username: ${{ secrets.PROD_USER }}
+          key: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
+          script: |
+            echo "=== SSH Connection Test ==="
+            docker --version
+            docker ps -a || true
+
+  test:
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: package-lock.json
+      - name: Install and build (sanity check)
+        env:
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+        run: |
+          npm ci
+          npm run build
+      - name: Run tests if present
+        run: |
+          if grep -q '"test"' package.json; then npm test; else echo "No test script"; fi
+        continue-on-error: true
+
+  build:
+    needs: [validate, test]
+    runs-on: ubuntu-latest
+    outputs:
+      docker_tag: ${{ steps.determine_tag.outputs.TAG }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Determine Docker tag
+        id: determine_tag
+        run: |
+          if [ -n "$(git tag --points-at HEAD 2>/dev/null)" ]; then
+            echo "TAG=$(git tag --points-at HEAD | head -1)" >> $GITHUB_OUTPUT
+          else
+            echo "TAG=$(date +'%Y.%m.%d-%H%M')" >> $GITHUB_OUTPUT
+          fi
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Build Docker image (local, no registry)
+        env:
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+        run: |
+          docker buildx create --use
+          docker buildx build \
+            -f ${{ env.DOCKERFILE_PATH }} \
+            --build-arg VITE_API_URL="$VITE_API_URL" \
+            -t ${{ env.IMAGE_NAME }}:${{ steps.determine_tag.outputs.TAG }} \
+            -t ${{ env.IMAGE_NAME }}:latest \
+            --platform linux/amd64 \
+            --load \
+            ${{ env.BUILD_CONTEXT }}
+      - name: Save Docker image
+        run: docker save ${{ env.IMAGE_NAME }}:latest | gzip > ${{ env.IMAGE_NAME }}.tar.gz
+      - name: Upload Docker image artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-image-web
+          path: ${{ env.IMAGE_NAME }}.tar.gz
+          retention-days: 1
+
+  deploy:
+    needs: [build, test-connection]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download Docker image artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: docker-image-web
+          path: .
+      - name: Verify artifact
+        run: test -f ${{ env.IMAGE_NAME }}.tar.gz
+
+      - name: Prepare deployment directory
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.PROD_HOST }}
+          port: ${{ secrets.PROD_SSH_PORT }}
+          username: ${{ secrets.PROD_USER }}
+          key: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
+          script: mkdir -p ${{ env.DEPLOY_DIR }}
+
+      - name: Copy Docker image to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.PROD_HOST }}
+          port: ${{ secrets.PROD_SSH_PORT }}
+          username: ${{ secrets.PROD_USER }}
+          key: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
+          source: "${{ env.IMAGE_NAME }}.tar.gz"
+          target: "/tmp/"
+          overwrite: true
+
+      - name: Deploy container
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.PROD_HOST }}
+          port: ${{ secrets.PROD_SSH_PORT }}
+          username: ${{ secrets.PROD_USER }}
+          key: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
+          script: |
+            set -euo pipefail
+            echo "Loading Docker image..."
+            docker load < /tmp/${{ env.IMAGE_NAME }}.tar.gz
+            rm -f /tmp/${{ env.IMAGE_NAME }}.tar.gz
+
+            docker stop ${{ env.CONTAINER_NAME }} || true
+            docker rm -f ${{ env.CONTAINER_NAME }} || true
+
+            EXISTING=$(docker ps -q -f publish=${{ env.HOST_PORT }})
+            if [ -n "$EXISTING" ]; then
+              docker stop "$EXISTING" || true
+              docker rm -f "$EXISTING" || true
+            fi
+
+            docker run -d \
+              --name ${{ env.CONTAINER_NAME }} \
+              --restart unless-stopped \
+              -p ${{ env.HOST_PORT }}:${{ env.CONTAINER_PORT }} \
+              ${{ env.IMAGE_NAME }}:latest
+
+            docker image prune -f
+            echo "=== Web deployed on port ${{ env.HOST_PORT }} ==="
+
+  post-deploy-test:
+    needs: [deploy]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify deployment
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.PROD_HOST }}
+          port: ${{ secrets.PROD_SSH_PORT }}
+          username: ${{ secrets.PROD_USER }}
+          key: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
+          script: |
+            docker ps -a | grep ${{ env.CONTAINER_NAME }} || true
+            curl -sf "http://localhost:${{ env.HOST_PORT }}/health" >/dev/null && echo "Web health OK" || echo "Check nginx logs"
+            docker logs ${{ env.CONTAINER_NAME }} --tail 20 || true
