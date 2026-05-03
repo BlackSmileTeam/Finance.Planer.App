@@ -1,5 +1,7 @@
-# Деплой без Docker Hub: build → docker save → SCP → docker load.
-# Секреты: PROD_HOST, PROD_USER, PROD_SSH_PRIVATE_KEY, PROD_SSH_PORT, VITE_API_URL
+# No Docker Hub: build image in CI, docker save, SCP, docker load.
+# Repository root = web app (this repo).
+# Secrets: PROD_HOST, PROD_USER, PROD_SSH_PRIVATE_KEY, PROD_SSH_PORT
+# VITE_API_URL is derived as http://PROD_HOST:API_HOST_PORT (align API_HOST_PORT with backend HOST_PORT).
 
 name: Deploy Web
 
@@ -17,7 +19,7 @@ env:
   BUILD_CONTEXT: .
   CONTAINER_PORT: 80
   HOST_PORT: 55666
-  DEPLOY_DIR: /opt/financial-planner-web
+  API_HOST_PORT: "55665"
   IMAGE_NAME: financial-planner-web
   CONTAINER_NAME: financial-planner-web
 
@@ -70,7 +72,7 @@ jobs:
           cache-dependency-path: package-lock.json
       - name: Install and build (sanity check)
         env:
-          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+          VITE_API_URL: http://${{ secrets.PROD_HOST }}:${{ env.API_HOST_PORT }}
         run: |
           npm ci
           npm run build
@@ -100,7 +102,7 @@ jobs:
         uses: docker/setup-buildx-action@v3
       - name: Build Docker image (local, no registry)
         env:
-          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+          VITE_API_URL: http://${{ secrets.PROD_HOST }}:${{ env.API_HOST_PORT }}
         run: |
           docker buildx create --use
           docker buildx build \
@@ -132,15 +134,6 @@ jobs:
           path: .
       - name: Verify artifact
         run: test -f ${{ env.IMAGE_NAME }}.tar.gz
-
-      - name: Prepare deployment directory
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.PROD_HOST }}
-          port: ${{ secrets.PROD_SSH_PORT }}
-          username: ${{ secrets.PROD_USER }}
-          key: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
-          script: mkdir -p ${{ env.DEPLOY_DIR }}
 
       - name: Copy Docker image to server
         uses: appleboy/scp-action@v0.1.7
