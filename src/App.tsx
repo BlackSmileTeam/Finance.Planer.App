@@ -50,7 +50,7 @@ import { PendingPaymentNotification } from "./components/PendingPaymentNotificat
 import { PlannedTransactionNotification } from "./components/PlannedTransactionNotification";
 import { removeToken } from "./api/client";
 import type { LoanPaymentForMonthDto, PendingCreditPaymentDto, PendingPlannedTransactionDto } from "./types";
-import { CATEGORY_EMOJI_PRESETS } from "./constants/categoryEmojis";
+import { CATEGORY_EMOJI_GROUPS } from "./constants/categoryEmojis";
 
 type TabType = "overview" | "finances" | "credits" | "reports" | "planvsactual";
 
@@ -236,6 +236,12 @@ function App() {
     document.addEventListener("pointerdown", onPointerDown, true);
     return () => document.removeEventListener("pointerdown", onPointerDown, true);
   }, [categoryIconPickerOpen]);
+
+  const appendCategoryEmoji = (emoji: string) => {
+    const current = categoryForm.icon ?? "";
+    const separator = current === "" || current.endsWith(" ") ? "" : " ";
+    setCategoryForm({ ...categoryForm, icon: `${current}${separator}${emoji}` });
+  };
 
   /// <summary>
   /// <para>Loads initial reference data.</para>
@@ -1820,26 +1826,30 @@ function App() {
                     {categoryIconPickerOpen && (
                       <div className="category-icon-field__dropdown" role="listbox" aria-label="Готовые эмодзи">
                         <div className="category-icon-field__dropdown-scroll category-emoji-picker--scroll">
-                          <div className="category-icon-field__emoji-grid">
-                            {CATEGORY_EMOJI_PRESETS.map((emoji) => (
-                              <button
-                                key={emoji}
-                                type="button"
-                                className={
-                                  categoryForm.icon === emoji
-                                    ? "category-emoji-picker__btn category-emoji-picker__btn--selected"
-                                    : "category-emoji-picker__btn"
-                                }
-                                title={emoji}
-                                role="option"
-                                aria-selected={categoryForm.icon === emoji}
-                                onClick={() => {
-                                  setCategoryForm({ ...categoryForm, icon: emoji });
-                                  setCategoryIconPickerOpen(false);
-                                }}
-                              >
-                                {emoji}
-                              </button>
+                          <div className="category-icon-field__emoji-groups">
+                            {CATEGORY_EMOJI_GROUPS.map((group) => (
+                              <div key={group.title} className="category-icon-field__emoji-group">
+                                <h4 className="category-icon-field__group-title">{group.title}</h4>
+                                <div className="category-icon-field__emoji-grid">
+                                  {group.emojis.map((emoji) => (
+                                    <button
+                                      key={`${group.title}-${emoji}`}
+                                      type="button"
+                                      className={
+                                        (categoryForm.icon ?? "").includes(emoji)
+                                          ? "category-emoji-picker__btn category-emoji-picker__btn--selected"
+                                          : "category-emoji-picker__btn"
+                                      }
+                                      title={emoji}
+                                      role="option"
+                                      aria-selected={(categoryForm.icon ?? "").includes(emoji)}
+                                      onClick={() => appendCategoryEmoji(emoji)}
+                                    >
+                                      {emoji}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
                             ))}
                           </div>
                         </div>

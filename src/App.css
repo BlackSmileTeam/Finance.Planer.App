@@ -15,6 +15,36 @@ body {
   color: #f1f5f9;
 }
 
+html,
+body {
+  scrollbar-width: thin;
+  scrollbar-color: #475569 #1e293b;
+}
+
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+html::-webkit-scrollbar-track,
+body::-webkit-scrollbar-track {
+  background: #1e293b;
+}
+
+html::-webkit-scrollbar-thumb,
+body::-webkit-scrollbar-thumb {
+  background: #475569;
+  border-radius: 3px;
+}
+
+html::-webkit-scrollbar-button,
+body::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
 /* Main app container with sidebar layout */
 .app {
   display: flex;
@@ -1862,26 +1892,27 @@ input[type="number"]::-webkit-outer-spin-button {
   display: flex;
   align-items: stretch;
   width: 100%;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  background: #1e293b;
+  overflow: hidden;
 }
 
 .category-icon-field__input {
   flex: 1;
   min-width: 0;
   padding: 0.75rem;
-  border: 1px solid #334155;
-  border-right: none;
-  border-radius: 8px 0 0 8px;
+  border: none;
+  border-radius: 0;
   font-size: 0.95rem;
-  background: #1e293b;
+  background: transparent;
   color: #f1f5f9;
-  transition: border-color 0.2s ease;
+  transition: box-shadow 0.2s ease;
 }
 
 .category-icon-field__input:focus {
   outline: none;
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-  z-index: 1;
+  box-shadow: inset 0 0 0 1px #3b82f6;
 }
 
 .form .category-icon-field__toggle {
@@ -1889,10 +1920,9 @@ input[type="number"]::-webkit-outer-spin-button {
   margin: 0;
   padding: 0 0.65rem;
   min-width: 2.75rem;
-  border: 1px solid #334155;
-  border-radius: 0 8px 8px 0;
-  border-left: none;
-  background: #1e293b;
+  border: none;
+  border-radius: 0;
+  background: transparent;
   color: #94a3b8;
   cursor: pointer;
   font-size: 0.7rem;
@@ -1905,7 +1935,7 @@ input[type="number"]::-webkit-outer-spin-button {
 }
 
 .form .category-icon-field__toggle:hover {
-  background: #334155;
+  background: rgba(71, 85, 105, 0.25);
   color: #f1f5f9;
   transform: none;
   box-shadow: none;
@@ -1934,10 +1964,10 @@ input[type="number"]::-webkit-outer-spin-button {
 }
 
 .category-icon-field__dropdown-scroll {
-  max-height: 220px;
+  max-height: 360px;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 8px 6px 8px 8px;
+  padding: 10px 6px 10px 10px;
 }
 
 /* Thin scrollbar, site colors, no arrows (WebKit) */
@@ -1970,12 +2000,33 @@ input[type="number"]::-webkit-outer-spin-button {
   height: 0;
 }
 
+.category-icon-field__emoji-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.category-icon-field__emoji-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.category-icon-field__group-title {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #93c5fd;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 .category-icon-field__emoji-grid {
   display: grid;
   grid-template-columns: repeat(8, 2.25rem);
   justify-content: center;
   justify-items: center;
-  gap: 6px;
+  gap: 10px;
   width: 100%;
 }
 
