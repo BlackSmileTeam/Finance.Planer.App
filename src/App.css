@@ -1852,3 +1852,61 @@ input[type="number"]::-webkit-outer-spin-button {
     padding: 1rem;
   }
 }
+
+/* Category modal — emoji preset grid */
+.category-emoji-picker__hint {
+  margin: 0.25rem 0 0.5rem;
+  font-size: 0.85rem;
+  color: #94a3b8;
+  font-weight: 400;
+}
+
+.category-emoji-picker {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(2rem, 1fr));
+  gap: 6px;
+  max-height: 200px;
+  overflow-y: auto;
+  padding: 6px;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.6);
+}
+
+.category-emoji-picker__btn {
+  font-size: 1.35rem;
+  line-height: 1;
+  padding: 8px 4px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: rgba(51, 65, 85, 0.35);
+  color: inherit;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.category-emoji-picker__btn:hover {
+  background: rgba(59, 130, 246, 0.2);
+  border-color: #475569;
+}
+
+.category-emoji-picker__btn--selected {
+  border-color: #3b82f6;
+  background: rgba(59, 130, 246, 0.22);
+}
+
+.category-emoji-picker__clear {
+  margin-top: 0.5rem;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.875rem;
+  background: transparent;
+  border: 1px solid #475569;
+  border-radius: 6px;
+  color: #cbd5e1;
+  cursor: pointer;
+}
+
+.category-emoji-picker__clear:hover {
+  border-color: #64748b;
+  color: #f1f5f9;
+}

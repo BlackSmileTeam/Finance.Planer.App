@@ -50,6 +50,7 @@ import { PendingPaymentNotification } from "./components/PendingPaymentNotificat
 import { PlannedTransactionNotification } from "./components/PlannedTransactionNotification";
 import { removeToken } from "./api/client";
 import type { LoanPaymentForMonthDto, PendingCreditPaymentDto, PendingPlannedTransactionDto } from "./types";
+import { CATEGORY_EMOJI_PRESETS } from "./constants/categoryEmojis";
 
 type TabType = "overview" | "finances" | "credits" | "reports" | "planvsactual";
 
@@ -1763,15 +1764,37 @@ function App() {
                   </select>
                 </label>
                 <label>
-                  Иконка (эмодзи)
-                  <input
-                    value={categoryForm.icon || ""}
-                    onChange={(e) =>
-                      setCategoryForm({ ...categoryForm, icon: e.target.value || undefined })
-                    }
-                    placeholder="Например: 🏠"
-                    maxLength={2}
-                  />
+                  Иконка
+                  <p className="category-emoji-picker__hint">Выберите эмодзи из списка</p>
+                  <div
+                    className="category-emoji-picker"
+                    role="listbox"
+                    aria-label="Эмодзи категории"
+                  >
+                    {CATEGORY_EMOJI_PRESETS.map((emoji) => (
+                      <button
+                        key={emoji}
+                        type="button"
+                        className={
+                          categoryForm.icon === emoji
+                            ? "category-emoji-picker__btn category-emoji-picker__btn--selected"
+                            : "category-emoji-picker__btn"
+                        }
+                        title={emoji}
+                        aria-selected={categoryForm.icon === emoji}
+                        onClick={() => setCategoryForm({ ...categoryForm, icon: emoji })}
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    className="category-emoji-picker__clear"
+                    onClick={() => setCategoryForm({ ...categoryForm, icon: undefined })}
+                  >
+                    Без иконки
+                  </button>
                 </label>
                 {!categoryForm.parentId && (
                   <label>
