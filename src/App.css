@@ -1898,12 +1898,12 @@ input[type="number"]::-webkit-outer-spin-button {
   overflow: hidden;
 }
 
-.category-icon-field__input {
+.form .category-icon-field__input {
   flex: 1;
   min-width: 0;
   padding: 0.75rem;
   border: none;
-  border-radius: 0;
+  border-radius: 0 !important;
   font-size: 0.95rem;
   background: transparent;
   color: #f1f5f9;
@@ -1964,10 +1964,11 @@ input[type="number"]::-webkit-outer-spin-button {
 }
 
 .category-icon-field__dropdown-scroll {
-  max-height: 360px;
+  max-height: 260px;
   overflow-y: auto;
   overflow-x: hidden;
   padding: 10px 6px 10px 10px;
+  scrollbar-gutter: stable;
 }
 
 /* Thin scrollbar, site colors, no arrows (WebKit) */
@@ -2012,22 +2013,54 @@ input[type="number"]::-webkit-outer-spin-button {
   gap: 0.45rem;
 }
 
-.category-icon-field__group-title {
+.form .category-icon-field__group-toggle {
+  align-self: stretch;
   margin: 0;
-  font-size: 0.78rem;
-  font-weight: 700;
+  padding: 0.25rem 0.15rem;
+  background: transparent;
+  border: none;
+  border-radius: 0;
   color: #93c5fd;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  box-shadow: none;
+  transform: none;
+}
+
+.form .category-icon-field__group-toggle:hover {
+  color: #bfdbfe;
+  background: transparent;
+  box-shadow: none;
+  transform: none;
+}
+
+.category-icon-field__group-toggle span:first-child {
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.category-icon-field__group-chevron {
+  font-size: 0.85rem;
+  transition: transform 0.15s ease;
+}
+
+.category-icon-field__group-toggle[aria-expanded="false"] .category-icon-field__group-chevron {
+  transform: rotate(-90deg);
 }
 
 .category-icon-field__emoji-grid {
   display: grid;
-  grid-template-columns: repeat(8, 2.25rem);
+  grid-template-columns: repeat(8, minmax(2.3rem, 1fr));
   justify-content: center;
   justify-items: center;
-  gap: 10px;
+  column-gap: 14px;
+  row-gap: 10px;
   width: 100%;
+  padding: 0 2px;
 }
 
 .category-emoji-picker__btn {

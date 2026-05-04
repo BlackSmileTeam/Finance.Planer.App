@@ -169,6 +169,7 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [categoryIconPickerOpen, setCategoryIconPickerOpen] = useState(false);
+  const [collapsedEmojiGroups, setCollapsedEmojiGroups] = useState<Record<string, boolean>>({});
   const categoryIconFieldRef = useRef<HTMLDivElement>(null);
   const categoryColorInputRef = useRef<HTMLInputElement>(null);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
@@ -241,6 +242,10 @@ function App() {
     const current = categoryForm.icon ?? "";
     const separator = current === "" || current.endsWith(" ") ? "" : " ";
     setCategoryForm({ ...categoryForm, icon: `${current}${separator}${emoji}` });
+  };
+
+  const toggleEmojiGroup = (title: string) => {
+    setCollapsedEmojiGroups((prev) => ({ ...prev, [title]: !prev[title] }));
   };
 
   /// <summary>
@@ -1829,26 +1834,41 @@ function App() {
                           <div className="category-icon-field__emoji-groups">
                             {CATEGORY_EMOJI_GROUPS.map((group) => (
                               <div key={group.title} className="category-icon-field__emoji-group">
-                                <h4 className="category-icon-field__group-title">{group.title}</h4>
-                                <div className="category-icon-field__emoji-grid">
-                                  {group.emojis.map((emoji) => (
-                                    <button
-                                      key={`${group.title}-${emoji}`}
-                                      type="button"
-                                      className={
-                                        (categoryForm.icon ?? "").includes(emoji)
-                                          ? "category-emoji-picker__btn category-emoji-picker__btn--selected"
-                                          : "category-emoji-picker__btn"
-                                      }
-                                      title={emoji}
-                                      role="option"
-                                      aria-selected={(categoryForm.icon ?? "").includes(emoji)}
-                                      onClick={() => appendCategoryEmoji(emoji)}
-                                    >
-                                      {emoji}
-                                    </button>
-                                  ))}
-                                </div>
+                                <button
+                                  type="button"
+                                  className="category-icon-field__group-toggle"
+                                  aria-expanded={!collapsedEmojiGroups[group.title]}
+                                  onClick={() => toggleEmojiGroup(group.title)}
+                                >
+                                  <span>{group.title}</span>
+                                  <span
+                                    className="category-icon-field__group-chevron"
+                                    aria-hidden
+                                  >
+                                    ▾
+                                  </span>
+                                </button>
+                                {!collapsedEmojiGroups[group.title] && (
+                                  <div className="category-icon-field__emoji-grid">
+                                    {group.emojis.map((emoji) => (
+                                      <button
+                                        key={`${group.title}-${emoji}`}
+                                        type="button"
+                                        className={
+                                          (categoryForm.icon ?? "").includes(emoji)
+                                            ? "category-emoji-picker__btn category-emoji-picker__btn--selected"
+                                            : "category-emoji-picker__btn"
+                                        }
+                                        title={emoji}
+                                        role="option"
+                                        aria-selected={(categoryForm.icon ?? "").includes(emoji)}
+                                        onClick={() => appendCategoryEmoji(emoji)}
+                                      >
+                                        {emoji}
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
                               </div>
                             ))}
                           </div>
