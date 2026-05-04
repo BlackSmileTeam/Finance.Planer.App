@@ -948,6 +948,13 @@ body::-webkit-scrollbar-button {
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
+.form textarea {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  resize: vertical;
+}
+
 /* Стили для числовых полей ввода */
 input[type="number"] {
   -moz-appearance: textfield; /* Firefox - убираем стрелки */
