@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import dayjs from "dayjs";
 import isSameOrAfter from "dayjs/plugin/isSameOrAfter";
 import isSameOrBefore from "dayjs/plugin/isSameOrBefore";
@@ -168,6 +168,9 @@ function App() {
   const [isBusy, setIsBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [categoryIconPickerOpen, setCategoryIconPickerOpen] = useState(false);
+  const categoryIconFieldRef = useRef<HTMLDivElement>(null);
+  const categoryColorInputRef = useRef<HTMLInputElement>(null);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [passwordForm, setPasswordForm] = useState({
@@ -213,6 +216,26 @@ function App() {
     window.addEventListener("auth:logout", handleLogout);
     return () => window.removeEventListener("auth:logout", handleLogout);
   }, []);
+
+  useEffect(() => {
+    if (!showCategoryModal) {
+      setCategoryIconPickerOpen(false);
+    }
+  }, [showCategoryModal]);
+
+  useEffect(() => {
+    if (!categoryIconPickerOpen) {
+      return;
+    }
+    const onPointerDown = (e: PointerEvent) => {
+      const el = categoryIconFieldRef.current;
+      if (el && !el.contains(e.target as Node)) {
+        setCategoryIconPickerOpen(false);
+      }
+    };
+    document.addEventListener("pointerdown", onPointerDown, true);
+    return () => document.removeEventListener("pointerdown", onPointerDown, true);
+  }, [categoryIconPickerOpen]);
 
   /// <summary>
   /// <para>Loads initial reference data.</para>
@@ -1765,47 +1788,96 @@ function App() {
                 </label>
                 <label>
                   Иконка
-                  <p className="category-emoji-picker__hint">Выберите эмодзи из списка</p>
-                  <div
-                    className="category-emoji-picker"
-                    role="listbox"
-                    aria-label="Эмодзи категории"
-                  >
-                    {CATEGORY_EMOJI_PRESETS.map((emoji) => (
-                      <button
-                        key={emoji}
-                        type="button"
-                        className={
-                          categoryForm.icon === emoji
-                            ? "category-emoji-picker__btn category-emoji-picker__btn--selected"
-                            : "category-emoji-picker__btn"
+                  <div className="category-icon-field" ref={categoryIconFieldRef}>
+                    <div className="category-icon-field__row">
+                      <input
+                        className="category-icon-field__input"
+                        value={categoryForm.icon ?? ""}
+                        onChange={(e) =>
+                          setCategoryForm({
+                            ...categoryForm,
+                            icon: e.target.value.trim() === "" ? undefined : e.target.value,
+                          })
                         }
-                        title={emoji}
-                        aria-selected={categoryForm.icon === emoji}
-                        onClick={() => setCategoryForm({ ...categoryForm, icon: emoji })}
+                        placeholder="Введите эмодзи или откройте список"
+                        autoComplete="off"
+                        aria-expanded={categoryIconPickerOpen}
+                        aria-haspopup="listbox"
+                        onFocus={() => setCategoryIconPickerOpen(false)}
+                      />
+                      <button
+                        type="button"
+                        className="category-icon-field__toggle"
+                        aria-label={categoryIconPickerOpen ? "Закрыть список эмодзи" : "Открыть список эмодзи"}
+                        aria-expanded={categoryIconPickerOpen}
+                        onClick={() => setCategoryIconPickerOpen((open) => !open)}
                       >
-                        {emoji}
+                        <span className="category-icon-field__chevron" aria-hidden>
+                          ▼
+                        </span>
                       </button>
-                    ))}
+                    </div>
+                    {categoryIconPickerOpen && (
+                      <div className="category-icon-field__dropdown" role="listbox" aria-label="Готовые эмодзи">
+                        <div className="category-icon-field__dropdown-scroll category-emoji-picker--scroll">
+                          <div className="category-icon-field__emoji-grid">
+                            {CATEGORY_EMOJI_PRESETS.map((emoji) => (
+                              <button
+                                key={emoji}
+                                type="button"
+                                className={
+                                  categoryForm.icon === emoji
+                                    ? "category-emoji-picker__btn category-emoji-picker__btn--selected"
+                                    : "category-emoji-picker__btn"
+                                }
+                                title={emoji}
+                                role="option"
+                                aria-selected={categoryForm.icon === emoji}
+                                onClick={() => {
+                                  setCategoryForm({ ...categoryForm, icon: emoji });
+                                  setCategoryIconPickerOpen(false);
+                                }}
+                              >
+                                {emoji}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                   <button
                     type="button"
                     className="category-emoji-picker__clear"
-                    onClick={() => setCategoryForm({ ...categoryForm, icon: undefined })}
+                    onClick={() => {
+                      setCategoryForm({ ...categoryForm, icon: undefined });
+                      setCategoryIconPickerOpen(false);
+                    }}
                   >
                     Без иконки
                   </button>
                 </label>
                 {!categoryForm.parentId && (
-                  <label>
+                  <label className="category-color-label">
                     Цвет
-                    <input
-                      type="color"
-                      value={categoryForm.hexColor}
-                      onChange={(e) =>
-                        setCategoryForm({ ...categoryForm, hexColor: e.target.value })
-                      }
-                    />
+                    <div className="category-color-field">
+                      <input
+                        ref={categoryColorInputRef}
+                        type="color"
+                        className="category-color-field__native"
+                        value={categoryForm.hexColor}
+                        onChange={(e) =>
+                          setCategoryForm({ ...categoryForm, hexColor: e.target.value })
+                        }
+                      />
+                      <button
+                        type="button"
+                        className="category-color-field__swatch"
+                        style={{ backgroundColor: categoryForm.hexColor }}
+                        aria-label="Выбрать цвет категории"
+                        onClick={() => categoryColorInputRef.current?.click()}
+                      />
+                    </div>
                   </label>
                 )}
                 <div style={{ display: "flex", gap: "0.5rem" }}>
