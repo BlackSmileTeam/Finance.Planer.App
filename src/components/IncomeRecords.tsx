@@ -39,6 +39,17 @@ const formatAmount = (amount: number, currency?: string): string => {
   return `${amount.toFixed(2)} ${symbol}`;
 };
 
+function HintTooltip({ text }: { text: string }) {
+  return (
+    <span className="hint-tooltip" tabIndex={0} aria-label={text}>
+      ?
+      <span className="hint-tooltip__content" role="tooltip">
+        {text}
+      </span>
+    </span>
+  );
+}
+
 /** Разрешает только цифры и один разделитель (запятая или точка). */
 function filterAmountInput(raw: string): string {
   let hasSep = false;
@@ -868,12 +879,10 @@ export function IncomeRecords({ onNewClick, onDelete, records, incomeCycles = []
                         disabled={!!editingId && (incomeCycles.some((c) => c.id === editingId) || isCycleGeneratedId(editingId))}
                       />
                       <span>Повторяющийся доход</span>
+                      {form.isPlanned && (
+                        <HintTooltip text="При включённом «Повторяющийся доход» плановый доход будет отображаться в выбранном месяце и во всех последующих." />
+                      )}
                     </label>
-                    {form.isPlanned && (
-                      <p style={{ fontSize: "0.85rem", color: "#94a3b8", margin: "0" }}>
-                        При включённом «Повторяющийся доход» плановый доход будет отображаться в выбранном месяце и во всех последующих.
-                      </p>
-                    )}
                   </>
                 )}
                 {isRecurring && (

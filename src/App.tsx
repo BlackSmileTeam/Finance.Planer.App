@@ -75,6 +75,17 @@ function parseAmountStr(s: string): number {
   return Number.isNaN(n) ? 0 : n;
 }
 
+function HintTooltip({ text }: { text: string }) {
+  return (
+    <span className="hint-tooltip" tabIndex={0} aria-label={text}>
+      ?
+      <span className="hint-tooltip__content" role="tooltip">
+        {text}
+      </span>
+    </span>
+  );
+}
+
 /// <summary>
 /// <para>Top-level application component that orchestrates data fetching and UI.</para>
 /// </summary>
@@ -1593,8 +1604,9 @@ function App() {
                             ))}
                           </select>
                         </label>
-                        <span style={{ fontSize: "0.85rem", color: "#94a3b8" }}>
-                          Сумма и описание подставятся по выбранному кредиту; при необходимости измените.
+                        <span style={{ fontSize: "0.85rem", color: "#94a3b8", display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                          Подстановка по кредиту
+                          <HintTooltip text="Сумма и описание подставятся по выбранному кредиту; при необходимости измените." />
                         </span>
                       </div>
                     )}
@@ -1614,15 +1626,16 @@ function App() {
                             ))}
                           </select>
                         </label>
-                        <span style={{ fontSize: "0.85rem", color: "#94a3b8", display: "block", marginTop: "0.25rem" }}>
-                          Будет создана транзакция по карте; в общий баланс расход не войдёт (учтётся при погашении)
+                        <span style={{ fontSize: "0.85rem", color: "#94a3b8", display: "flex", alignItems: "center", gap: "0.4rem", marginTop: "0.25rem" }}>
+                          Пояснение
+                          <HintTooltip text="Будет создана транзакция по карте; в общий баланс расход не войдёт (учтётся при погашении)." />
                         </span>
                       </>
                     )}
                   </label>
                   <label>
                     {isRecurring ? "Название (описание)" : "Описание"}
-                    <input
+                    <textarea
                       value={expenseForm.description}
                       onChange={(e) =>
                         setExpenseForm({ ...expenseForm, description: e.target.value })

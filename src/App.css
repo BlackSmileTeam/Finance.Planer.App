@@ -955,6 +955,50 @@ body::-webkit-scrollbar-button {
   resize: vertical;
 }
 
+.hint-tooltip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 50%;
+  border: 1px solid #475569;
+  color: #93c5fd;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: help;
+  user-select: none;
+}
+
+.hint-tooltip__content {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  min-width: 220px;
+  max-width: 360px;
+  width: max-content;
+  background: #0f172a;
+  color: #e2e8f0;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 0.55rem 0.7rem;
+  font-size: 0.8rem;
+  line-height: 1.35;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  z-index: 1200;
+}
+
+.hint-tooltip:hover .hint-tooltip__content,
+.hint-tooltip:focus-visible .hint-tooltip__content {
+  opacity: 1;
+  visibility: visible;
+}
+
 /* Стили для числовых полей ввода */
 input[type="number"] {
   -moz-appearance: textfield; /* Firefox - убираем стрелки */
