@@ -34,7 +34,9 @@ import type {
   RecurringExpenseDto,
   IncomeRecordDto,
   InvestmentDto,
+  UserDto,
 } from "./types";
+import { HintTooltip } from "./components/HintTooltip";
 import { CreditAccounts } from "./components/CreditAccounts";
 import { CreditTransactions } from "./components/CreditTransactions";
 import { Investments } from "./components/Investments";
@@ -75,15 +77,51 @@ function parseAmountStr(s: string): number {
   return Number.isNaN(n) ? 0 : n;
 }
 
-function HintTooltip({ text }: { text: string }) {
-  return (
-    <span className="hint-tooltip" tabIndex={0} aria-label={text}>
-      ?
-      <span className="hint-tooltip__content" role="tooltip">
-        {text}
-      </span>
-    </span>
-  );
+/**
+ * Aligns expense form category/subcategory with parent options (case-insensitive ids, subcategory stored as category, etc.).
+ */
+function resolveExpenseCategoryFields(
+  rawCategoryId: string | undefined,
+  rawSubcategoryId: string | undefined,
+  categories: CategoryDto[],
+  options?: { fallbackToFirstParent?: boolean }
+): { categoryId: string; subcategoryId: string | undefined } {
+  const fallbackToFirstParent = options?.fallbackToFirstParent !== false;
+  const parents = categories.filter((c) => !c.parentId);
+  const fallbackParentId = parents[0]?.id ?? "";
+
+  const normalizeSub = (parent: CategoryDto, subId: string | undefined): string | undefined => {
+    if (!subId) return undefined;
+    const subs = parent.subcategories ?? [];
+    return subs.find((s) => s.id.toLowerCase() === subId.toLowerCase())?.id;
+  };
+
+  if (!rawCategoryId?.trim()) {
+    return { categoryId: fallbackToFirstParent ? fallbackParentId : "", subcategoryId: undefined };
+  }
+
+  const asParent = parents.find((p) => p.id.toLowerCase() === rawCategoryId.toLowerCase());
+  if (asParent) {
+    return {
+      categoryId: asParent.id,
+      subcategoryId: normalizeSub(asParent, rawSubcategoryId),
+    };
+  }
+
+  for (const p of parents) {
+    const asSub = p.subcategories?.find((s) => s.id.toLowerCase() === rawCategoryId.toLowerCase());
+    if (asSub) {
+      return {
+        categoryId: p.id,
+        subcategoryId: normalizeSub(p, rawSubcategoryId) ?? asSub.id,
+      };
+    }
+  }
+
+  if (fallbackToFirstParent) {
+    return { categoryId: fallbackParentId, subcategoryId: undefined };
+  }
+  return { categoryId: "", subcategoryId: undefined };
 }
 
 /// <summary>
@@ -120,7 +158,6 @@ function App() {
     accountNumber: "",
     accountType: "Card",
     balance: 0,
-    cardHolderName: "",
     expiryDate: "",
     color: "#3b82f6",
     currency: "RUB",
@@ -145,6 +182,14 @@ function App() {
   });
   /** Строка для поля ввода суммы (пустая = показываем "0", запятая разрешена). */
   const [expenseAmountInput, setExpenseAmountInput] = useState("");
+  const [expenseFieldErrors, setExpenseFieldErrors] = useState({
+    category: false,
+    amount: false,
+    debitAccount: false,
+    creditAccount: false,
+  });
+  const [categoryFieldErrors, setCategoryFieldErrors] = useState({ name: false });
+  const [accountNameFieldError, setAccountNameFieldError] = useState(false);
   /** Режим «Банк → Кредит»: погашение кредита с выбранного банковского счёта. */
   const [isBankToLoanMode, setIsBankToLoanMode] = useState(false);
   const [showExpenseModal, setShowExpenseModal] = useState(false);
@@ -195,6 +240,15 @@ function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
     return !!localStorage.getItem("authToken");
   });
+  const [, setAuthUser] = useState<UserDto | null>(() => {
+    try {
+      if (!localStorage.getItem("authToken")) return null;
+      const raw = localStorage.getItem("authUser");
+      return raw ? (JSON.parse(raw) as UserDto) : null;
+    } catch {
+      return null;
+    }
+  });
   const [confirmationModal, setConfirmationModal] = useState<{
     isOpen: boolean;
     title: string;
@@ -228,6 +282,19 @@ function App() {
     window.addEventListener("auth:logout", handleLogout);
     return () => window.removeEventListener("auth:logout", handleLogout);
   }, []);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setAuthUser(null);
+      return;
+    }
+    try {
+      const raw = localStorage.getItem("authUser");
+      setAuthUser(raw ? (JSON.parse(raw) as UserDto) : null);
+    } catch {
+      setAuthUser(null);
+    }
+  }, [isAuthenticated]);
 
   useEffect(() => {
     if (!showCategoryModal) {
@@ -300,10 +367,11 @@ function App() {
         setPendingPlannedTransactions(allPending);
         setCurrentPlannedTransactionIndex(0);
         if (categoryResponse.data.length > 0) {
-          const firstCategory = categoryResponse.data.find((c) => !c.parentId) || categoryResponse.data[0];
           setExpenseForm((prev) => ({
             ...prev,
-            categoryId: firstCategory.id,
+            ...resolveExpenseCategoryFields(prev.categoryId, prev.subcategoryId, categoryResponse.data, {
+              fallbackToFirstParent: true,
+            }),
           }));
         }
       })
@@ -357,19 +425,31 @@ function App() {
   useEffect(() => {
     const justOpened = showExpenseModal && !prevShowExpenseModal.current;
     prevShowExpenseModal.current = showExpenseModal;
-    if (justOpened) {
-      if (!editingExpenseId) setExpenseAmountInput("");
-      if (!editingExpenseId && expenseAccounts.length > 0) {
-        const first = expenseAccounts[0];
-        setExpenseForm((prev) => ({
+    if (justOpened && !editingExpenseId) {
+      setExpenseAmountInput("");
+      setExpenseForm((prev) => {
+        const { categoryId, subcategoryId } = resolveExpenseCategoryFields(
+          prev.categoryId,
+          prev.subcategoryId,
+          categories,
+          { fallbackToFirstParent: true }
+        );
+        const next = {
           ...prev,
-          accountId: first.isCreditCard ? undefined : first.id,
-          creditAccountId: first.isCreditCard ? first.id : undefined,
-          currency: first.currency || "RUB",
-        }));
-      }
+          amount: 0,
+          categoryId,
+          subcategoryId,
+        };
+        if (expenseAccounts.length > 0) {
+          const first = expenseAccounts[0];
+          next.accountId = first.isCreditCard ? undefined : first.id;
+          next.creditAccountId = first.isCreditCard ? first.id : undefined;
+          next.currency = first.currency || "RUB";
+        }
+        return next;
+      });
     }
-  }, [showExpenseModal, editingExpenseId, expenseAccounts]);
+  }, [showExpenseModal, editingExpenseId, expenseAccounts, categories]);
 
   /// <summary>
   // Removed body scroll blocking - modal can be scrolled independently
@@ -427,9 +507,11 @@ function App() {
   /// </summary>
   const handleAddCategory = async () => {
     if (!categoryForm.name.trim()) {
+      setCategoryFieldErrors({ name: true });
       setError("Введите название категории.");
       return;
     }
+    setCategoryFieldErrors({ name: false });
     setIsBusy(true);
     try {
       // Ensure hexColor is in correct format (#RRGGBB)
@@ -459,8 +541,17 @@ function App() {
       setEditingCategoryId(null);
       setShowCategoryModal(false);
       setError(null);
-    } catch (err: any) {
-      setError(err.response?.data?.message || err.message || "Ошибка при создании категории");
+    } catch (err: unknown) {
+      const ax = err as {
+        message?: string;
+        response?: { data?: { message?: string; detail?: string; title?: string } | string };
+      };
+      const d = ax.response?.data;
+      const msg =
+        (typeof d === "string" ? d : d?.message ?? d?.detail ?? d?.title) ||
+        ax.message ||
+        "Ошибка при создании категории";
+      setError(msg);
     } finally {
       setIsBusy(false);
     }
@@ -470,14 +561,41 @@ function App() {
   /// <para>Persists a new expense to the backend.</para>
   /// </summary>
   const handleAddExpense = async () => {
-    if (!expenseForm.categoryId || expenseForm.amount <= 0) {
-      setError("Заполните категорию и сумму");
+    const { categoryId: resolvedCategoryId, subcategoryId: resolvedSubcategoryId } =
+      resolveExpenseCategoryFields(
+        expenseForm.categoryId,
+        expenseForm.subcategoryId,
+        categories,
+        { fallbackToFirstParent: true }
+      );
+    const categoryErr = !resolvedCategoryId;
+    const amountErr = expenseForm.amount <= 0;
+    const debitErr = isBankToLoanMode && !expenseForm.accountId;
+    const creditErr = isBankToLoanMode && !expenseForm.creditAccountId;
+    if (categoryErr || amountErr || debitErr || creditErr) {
+      setExpenseFieldErrors({
+        category: categoryErr,
+        amount: amountErr,
+        debitAccount: debitErr,
+        creditAccount: creditErr,
+      });
+      if (debitErr || creditErr) {
+        setError("Выберите счёт списания и кредит для погашения");
+      } else if (categoryErr && amountErr) {
+        setError("Заполните категорию и сумму");
+      } else if (categoryErr) {
+        setError("Выберите категорию");
+      } else {
+        setError("Введите сумму больше нуля");
+      }
       return;
     }
-    if (isBankToLoanMode && (!expenseForm.accountId || !expenseForm.creditAccountId)) {
-      setError("Выберите счёт списания и кредит для погашения");
-      return;
-    }
+    setExpenseFieldErrors({
+      category: false,
+      amount: false,
+      debitAccount: false,
+      creditAccount: false,
+    });
 
     setIsBusy(true);
     try {
@@ -486,8 +604,8 @@ function App() {
         if (editingExpenseId) {
           const recurringExpense = recurringExpenses.find(re => re.id === editingExpenseId);
           await financialApi.updateRecurringExpense(editingExpenseId, {
-            categoryId: expenseForm.categoryId,
-            subcategoryId: expenseForm.subcategoryId,
+            categoryId: resolvedCategoryId,
+            subcategoryId: resolvedSubcategoryId,
             title: expenseForm.description ?? "",
             amount: Number(expenseForm.amount),
             startDate: recurringFields.startDate,
@@ -499,8 +617,8 @@ function App() {
           });
         } else {
           await financialApi.createRecurringExpense({
-            categoryId: expenseForm.categoryId,
-            subcategoryId: expenseForm.subcategoryId,
+            categoryId: resolvedCategoryId,
+            subcategoryId: resolvedSubcategoryId,
             title: expenseForm.description ?? "",
             amount: Number(expenseForm.amount),
             startDate: recurringFields.startDate,
@@ -522,8 +640,8 @@ function App() {
             // Это повторяющийся расход, обновляем его
             const recurringExpense = recurringExpenses.find(re => re.id === editingExpenseId);
             await financialApi.updateRecurringExpense(editingExpenseId, {
-              categoryId: expenseForm.categoryId,
-              subcategoryId: expenseForm.subcategoryId,
+              categoryId: resolvedCategoryId,
+              subcategoryId: resolvedSubcategoryId,
               title: expenseForm.description ?? "",
               amount: Number(expenseForm.amount),
               startDate: recurringFields.startDate,
@@ -537,8 +655,8 @@ function App() {
           } else {
             // Это обычный расход
             await financialApi.updateExpense(editingExpenseId, {
-              categoryId: expenseForm.categoryId,
-              subcategoryId: expenseForm.subcategoryId,
+              categoryId: resolvedCategoryId,
+              subcategoryId: resolvedSubcategoryId,
               expenseDate: expenseForm.expenseDate,
               amount: Number(expenseForm.amount),
               description: expenseForm.description,
@@ -552,6 +670,8 @@ function App() {
         } else {
           await financialApi.createExpense({
             ...expenseForm,
+            categoryId: resolvedCategoryId,
+            subcategoryId: resolvedSubcategoryId,
             amount: Number(expenseForm.amount),
             creditAccountId: expenseForm.creditAccountId || undefined,
             paymentMonths: expenseForm.creditAccountId ? (expenseForm.paymentMonths ?? 6) : undefined,
@@ -583,6 +703,12 @@ function App() {
       setExpenseForm((prev) => ({ ...prev, amount: 0, description: "", subcategoryId: undefined, currency: "RUB", accountId: undefined, creditAccountId: undefined, paymentMonths: 6, isPlanned: false }));
       setIsBankToLoanMode(false);
       setExpenseAmountInput("");
+      setExpenseFieldErrors({
+        category: false,
+        amount: false,
+        debitAccount: false,
+        creditAccount: false,
+      });
       setEditingExpenseId(null);
       setIsRecurring(false);
       setRecurringFields({
@@ -622,9 +748,12 @@ function App() {
     const amountNum = Number(data.amount);
     const accountIdStr = matchId(data.accountId, expenseAccounts);
     const creditAccountIdStr = matchId(data.creditAccountId, expenseAccounts);
-    const categoryIdStr = matchId(data.categoryId, parentCategories) ?? "";
-    const subsForCategory = parentCategories.find((c) => c.id === categoryIdStr)?.subcategories ?? [];
-    const subcategoryIdStr = matchId(data.subcategoryId, subsForCategory);
+    const { categoryId: categoryIdStr, subcategoryId: subcategoryIdStr } = resolveExpenseCategoryFields(
+      data.categoryId != null ? String(data.categoryId) : undefined,
+      data.subcategoryId != null ? String(data.subcategoryId) : undefined,
+      categories,
+      { fallbackToFirstParent: false }
+    );
     setExpenseForm({
       categoryId: categoryIdStr,
       subcategoryId: subcategoryIdStr,
@@ -638,10 +767,22 @@ function App() {
       creditAccountId: creditAccountIdStr,
     });
     setExpenseAmountInput(amountNum === 0 ? "" : String(amountNum).replace(".", ","));
+    setExpenseFieldErrors({
+      category: false,
+      amount: false,
+      debitAccount: false,
+      creditAccount: false,
+    });
   };
 
   const handleEditExpense = async (expense: ExpenseDto) => {
     setError(null);
+    setExpenseFieldErrors({
+      category: false,
+      amount: false,
+      debitAccount: false,
+      creditAccount: false,
+    });
     setEditingExpenseId(expense.id);
     setIsRecurring(false);
     try {
@@ -684,7 +825,9 @@ function App() {
     });
   };
 
-  const selectedCategory = categories.find((c) => c.id === expenseForm.categoryId);
+  const selectedCategory = expenseForm.categoryId
+    ? categories.find((c) => c.id.toLowerCase() === expenseForm.categoryId.toLowerCase())
+    : undefined;
   const subcategories = selectedCategory?.subcategories || [];
   const parentCategories = categories.filter((c) => !c.parentId);
 
@@ -1208,7 +1351,45 @@ function App() {
                         ? "Расходы за 24–7"
                         : "Расходы за месяц"}
                   </h2>
-                  <button onClick={() => { setError(null); setShowExpenseModal(true); }}>Добавить расход</button>
+                  <button
+                    onClick={() => {
+                      setError(null);
+                      setEditingExpenseId(null);
+                      setIsRecurring(false);
+                      setIsBankToLoanMode(false);
+                      setExpenseFieldErrors({
+                        category: false,
+                        amount: false,
+                        debitAccount: false,
+                        creditAccount: false,
+                      });
+                      setExpenseAmountInput("");
+                      setExpenseForm((prev) => {
+                        const { categoryId, subcategoryId } = resolveExpenseCategoryFields(
+                          prev.categoryId,
+                          prev.subcategoryId,
+                          categories,
+                          { fallbackToFirstParent: true }
+                        );
+                        const next = {
+                          ...prev,
+                          amount: 0,
+                          categoryId,
+                          subcategoryId,
+                        };
+                        if (expenseAccounts.length > 0) {
+                          const first = expenseAccounts[0];
+                          next.accountId = first.isCreditCard ? undefined : first.id;
+                          next.creditAccountId = first.isCreditCard ? first.id : undefined;
+                          next.currency = first.currency || "RUB";
+                        }
+                        return next;
+                      });
+                      setShowExpenseModal(true);
+                    }}
+                  >
+                    Добавить расход
+                  </button>
                 </div>
                 <div className="panel__content">
                   <ExpenseList
@@ -1349,6 +1530,12 @@ function App() {
                   const recurringExpense = recurringExpenses.find(re => re.id === recurringId);
                   if (recurringExpense) {
                     setError(null);
+                    setExpenseFieldErrors({
+                      category: false,
+                      amount: false,
+                      debitAccount: false,
+                      creditAccount: false,
+                    });
                     setIsRecurring(true);
                     const isPlanned = !!recurringExpense.isPlanned;
                     setExpenseForm({
@@ -1429,11 +1616,40 @@ function App() {
 
           {/* Expense Modal */}
           {showExpenseModal && (
-            <div className="modal-overlay" onClick={() => { setShowExpenseModal(false); setError(null); setEditingExpenseId(null); setIsBankToLoanMode(false); }}>
+            <div
+              className="modal-overlay"
+              onClick={() => {
+                setShowExpenseModal(false);
+                setError(null);
+                setEditingExpenseId(null);
+                setIsBankToLoanMode(false);
+                setExpenseFieldErrors({
+                  category: false,
+                  amount: false,
+                  debitAccount: false,
+                  creditAccount: false,
+                });
+              }}
+            >
               <div className="modal" onClick={(e) => e.stopPropagation()}>
                 <div className="modal__header">
                   <h2>{editingExpenseId ? "Редактировать" : "Добавить"} расход</h2>
-                  <button onClick={() => { setShowExpenseModal(false); setError(null); setEditingExpenseId(null); setIsBankToLoanMode(false); }}>✕</button>
+                  <button
+                    onClick={() => {
+                      setShowExpenseModal(false);
+                      setError(null);
+                      setEditingExpenseId(null);
+                      setIsBankToLoanMode(false);
+                      setExpenseFieldErrors({
+                        category: false,
+                        amount: false,
+                        debitAccount: false,
+                        creditAccount: false,
+                      });
+                    }}
+                  >
+                    ✕
+                  </button>
                 </div>
                 <div className="modal__content">
                   {error && <div className="app__error" style={{ marginBottom: "1rem" }}>⚠️ {error}</div>}
@@ -1442,9 +1658,11 @@ function App() {
                     Категория
                     <select
                       value={expenseForm.categoryId}
-                      onChange={(e) =>
-                        setExpenseForm({ ...expenseForm, categoryId: e.target.value, subcategoryId: undefined })
-                      }
+                      onChange={(e) => {
+                        setExpenseFieldErrors((prev) => ({ ...prev, category: false }));
+                        setExpenseForm({ ...expenseForm, categoryId: e.target.value, subcategoryId: undefined });
+                      }}
+                      className={expenseFieldErrors.category ? "form-field--error" : undefined}
                     >
                       <option value="">Выберите категорию</option>
                       {parentCategories.map((category) => (
@@ -1494,12 +1712,23 @@ function App() {
                       onChange={(e) => {
                         const raw = e.target.value;
                         const filtered = filterAmountInput(raw);
+                        const amt = parseAmountStr(filtered);
                         setExpenseAmountInput(filtered);
                         setExpenseForm({
                           ...expenseForm,
-                          amount: parseAmountStr(filtered),
+                          amount: amt,
                         });
+                        if (amt > 0) setExpenseFieldErrors((prev) => ({ ...prev, amount: false }));
                       }}
+                      className={expenseFieldErrors.amount ? "form-field--error" : undefined}
+                      style={
+                        expenseFieldErrors.amount
+                          ? {
+                              borderColor: "#ef4444",
+                              boxShadow: "0 0 0 3px rgba(239, 68, 68, 0.18)",
+                            }
+                          : undefined
+                      }
                       placeholder="0"
                     />
                   </label>
@@ -1512,10 +1741,12 @@ function App() {
                           const id = e.target.value || undefined;
                           if (id === "__bank_to_loan__") {
                             setIsBankToLoanMode(true);
+                            setExpenseFieldErrors((prev) => ({ ...prev, debitAccount: false, creditAccount: false }));
                             setExpenseForm({ ...expenseForm, accountId: undefined, creditAccountId: undefined, paymentMonths: 6, currency: "RUB" });
                             return;
                           }
                           setIsBankToLoanMode(false);
+                          setExpenseFieldErrors((prev) => ({ ...prev, debitAccount: false, creditAccount: false }));
                           const acc = expenseAccounts.find((a) => a.id === id);
                           if (!acc) {
                             setExpenseForm({ ...expenseForm, accountId: undefined, creditAccountId: undefined, paymentMonths: 6, currency: expenseForm.currency || "RUB" });
@@ -1567,8 +1798,10 @@ function App() {
                             value={expenseForm.accountId || ""}
                             onChange={(e) => {
                               const id = e.target.value || undefined;
+                              setExpenseFieldErrors((prev) => ({ ...prev, debitAccount: false }));
                               setExpenseForm({ ...expenseForm, accountId: id });
                             }}
+                            className={expenseFieldErrors.debitAccount ? "form-field--error" : undefined}
                             style={{ width: "100%", marginTop: "0.25rem" }}
                           >
                             <option value="">Выберите счёт</option>
@@ -1584,6 +1817,7 @@ function App() {
                             onChange={(e) => {
                               const id = e.target.value || undefined;
                               const loan = id ? loanAccountsOnly.find((l) => l.id === id) : null;
+                              setExpenseFieldErrors((prev) => ({ ...prev, creditAccount: false }));
                               setExpenseForm({
                                 ...expenseForm,
                                 creditAccountId: id,
@@ -1593,7 +1827,11 @@ function App() {
                                 subcategoryId: undefined,
                               });
                               setExpenseAmountInput(loan?.monthlyPayment != null ? String(loan.monthlyPayment) : "");
+                              if (loan?.monthlyPayment != null && loan.monthlyPayment > 0) {
+                                setExpenseFieldErrors((prev) => ({ ...prev, amount: false }));
+                              }
                             }}
+                            className={expenseFieldErrors.creditAccount ? "form-field--error" : undefined}
                             style={{ width: "100%", marginTop: "0.25rem" }}
                           >
                             <option value="">Выберите кредит</option>
@@ -1729,7 +1967,22 @@ function App() {
                       <button onClick={handleAddExpense} disabled={isBusy}>
                         {editingExpenseId ? "Обновить" : isRecurring ? "Создать повторяющийся расход" : "Создать расход"}
                       </button>
-                      <button onClick={() => { setShowExpenseModal(false); setError(null); setEditingExpenseId(null); setIsBankToLoanMode(false); }}>Отмена</button>
+                      <button
+                        onClick={() => {
+                          setShowExpenseModal(false);
+                          setError(null);
+                          setEditingExpenseId(null);
+                          setIsBankToLoanMode(false);
+                          setExpenseFieldErrors({
+                            category: false,
+                            amount: false,
+                            debitAccount: false,
+                            creditAccount: false,
+                          });
+                        }}
+                      >
+                        Отмена
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -1772,21 +2025,44 @@ function App() {
 
       {/* Category Modal */}
       {showCategoryModal && (
-        <div className="modal-overlay modal-overlay--nested" onClick={() => { setShowCategoryModal(false); setError(null); }}>
+        <div
+          className="modal-overlay modal-overlay--nested"
+          onClick={() => {
+            setShowCategoryModal(false);
+            setError(null);
+            setCategoryFieldErrors({ name: false });
+          }}
+        >
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal__header">
               <h2>{editingCategoryId ? "Редактировать категорию" : categoryForm.parentId ? "Добавить подкатегорию" : "Добавить категорию"}</h2>
-              <button onClick={() => { setShowCategoryModal(false); setError(null); }}>✕</button>
+              <button
+                onClick={() => {
+                  setShowCategoryModal(false);
+                  setError(null);
+                  setCategoryFieldErrors({ name: false });
+                }}
+              >
+                ✕
+              </button>
             </div>
             <div className="modal__content">
+              {error && (
+                <div className="app__error" style={{ marginBottom: "1rem" }}>
+                  ⚠️ {error}
+                </div>
+              )}
               <div className="form">
                 <label>
                   Название
                   <input
                     value={categoryForm.name}
-                    onChange={(e) =>
-                      setCategoryForm({ ...categoryForm, name: e.target.value })
-                    }
+                    onChange={(e) => {
+                      setCategoryFieldErrors((prev) => ({ ...prev, name: false }));
+                      setError(null);
+                      setCategoryForm({ ...categoryForm, name: e.target.value });
+                    }}
+                    className={categoryFieldErrors.name ? "form-field--error" : undefined}
                   />
                 </label>
                 <label>
@@ -1925,7 +2201,15 @@ function App() {
                 )}
                 <div style={{ display: "flex", gap: "0.5rem" }}>
                   <button onClick={handleAddCategory}>Сохранить</button>
-                  <button onClick={() => { setShowCategoryModal(false); setError(null); }}>Отмена</button>
+                  <button
+                    onClick={() => {
+                      setShowCategoryModal(false);
+                      setError(null);
+                      setCategoryFieldErrors({ name: false });
+                    }}
+                  >
+                    Отмена
+                  </button>
                 </div>
               </div>
             </div>
@@ -1940,7 +2224,14 @@ function App() {
           <div className="app__right-sidebar__section">
           <div className="app__right-sidebar__header">
             <h2>Мои счета {accounts.length > 0 && `(${accounts.length})`}</h2>
-            <button className="app__right-sidebar__add-button" onClick={() => { setError(null); setShowAccountModal(true); }}>
+            <button
+              className="app__right-sidebar__add-button"
+              onClick={() => {
+                setError(null);
+                setAccountNameFieldError(false);
+                setShowAccountModal(true);
+              }}
+            >
               Добавить +
             </button>
           </div>
@@ -2135,33 +2426,27 @@ function App() {
                         })()
                       )}
                     </div>
-                    {selectedAccount.cardHolderName && (
+                    {selectedAccount.expiryDate && (
                       <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
                         <div style={{ fontSize: "0.85rem", color: "#cbd5e1" }}>
-                          {selectedAccount.cardHolderName}
+                          {(() => {
+                            // Normalize expiry date to MM/YY
+                            const dateStr = selectedAccount.expiryDate;
+                            if (dateStr.includes('/')) {
+                              const parts = dateStr.split('/');
+                              if (parts.length >= 2) {
+                                const month = parts[0].padStart(2, "0");
+                                const year = parts[1].length === 4 ? parts[1].slice(-2) : parts[1];
+                                return `${month}/${year}`;
+                              }
+                            }
+                            const date = dayjs(dateStr);
+                            if (date.isValid()) {
+                              return date.format("MM/YY");
+                            }
+                            return dateStr;
+                          })()}
                         </div>
-                        {selectedAccount.expiryDate && (
-                          <div style={{ fontSize: "0.85rem", color: "#cbd5e1" }}>
-                            {(() => {
-                              // Преобразуем дату в формат MM/YY
-                              const dateStr = selectedAccount.expiryDate;
-                              if (dateStr.includes('/')) {
-                                const parts = dateStr.split('/');
-                                if (parts.length >= 2) {
-                                  const month = parts[0].padStart(2, '0');
-                                  const year = parts[1].length === 4 ? parts[1].slice(-2) : parts[1];
-                                  return `${month}/${year}`;
-                                }
-                              }
-                              // Если формат другой, пытаемся распарсить
-                              const date = dayjs(dateStr);
-                              if (date.isValid()) {
-                                return date.format('MM/YY');
-                              }
-                              return dateStr;
-                            })()}
-                          </div>
-                        )}
                       </div>
                     )}
                   </div>
@@ -2189,11 +2474,11 @@ function App() {
                         accountNumber: formattedNumber,
                         accountType: selectedAccount.accountType,
                         balance: selectedAccount.balance,
-                        cardHolderName: selectedAccount.cardHolderName || "",
                         expiryDate: selectedAccount.expiryDate || "",
                         color: selectedAccount.color || "#3b82f6",
                         currency: (selectedAccount as any).currency || "RUB",
                       });
+                      setAccountNameFieldError(false);
                       setShowAccountModal(true);
                     }}
                   >
@@ -2267,7 +2552,38 @@ function App() {
               onMonthChange={setSelectedMonth}
               onAddExpense={(date) => {
                 setActiveTab("finances");
-                setExpenseForm({ ...expenseForm, expenseDate: date });
+                setEditingExpenseId(null);
+                setIsRecurring(false);
+                setIsBankToLoanMode(false);
+                setExpenseFieldErrors({
+                  category: false,
+                  amount: false,
+                  debitAccount: false,
+                  creditAccount: false,
+                });
+                setExpenseAmountInput("");
+                setExpenseForm((prev) => {
+                  const { categoryId, subcategoryId } = resolveExpenseCategoryFields(
+                    prev.categoryId,
+                    prev.subcategoryId,
+                    categories,
+                    { fallbackToFirstParent: true }
+                  );
+                  const next = {
+                    ...prev,
+                    amount: 0,
+                    categoryId,
+                    subcategoryId,
+                    expenseDate: date,
+                  };
+                  if (expenseAccounts.length > 0) {
+                    const first = expenseAccounts[0];
+                    next.accountId = first.isCreditCard ? undefined : first.id;
+                    next.creditAccountId = first.isCreditCard ? first.id : undefined;
+                    next.currency = first.currency || "RUB";
+                  }
+                  return next;
+                });
                 setShowExpenseModal(true);
               }}
             />
@@ -2283,39 +2599,60 @@ function App() {
 
       {/* Account Modal */}
       {showAccountModal && (
-        <div className="modal-overlay" onClick={() => { setShowAccountModal(false); setError(null); }}>
+        <div
+          className="modal-overlay"
+          onClick={() => {
+            setShowAccountModal(false);
+            setError(null);
+            setAccountNameFieldError(false);
+          }}
+        >
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal__header">
               <h2>{editingAccountId ? "Редактировать счет" : "Добавить счет"}</h2>
-              <button onClick={() => { 
-                setShowAccountModal(false); 
-                setError(null);
-                setEditingAccountId(null);
-                setNewAccount({
-                  name: "",
-                  accountNumber: "",
-                  accountType: "Card",
-                  balance: 0,
-                  cardHolderName: "",
-                  expiryDate: "",
-                  color: "#3b82f6",
-                  currency: "RUB",
-                });
-              }}>✕</button>
+              <button
+                onClick={() => {
+                  setShowAccountModal(false);
+                  setError(null);
+                  setAccountNameFieldError(false);
+                  setEditingAccountId(null);
+                  setNewAccount({
+                    name: "",
+                    accountNumber: "",
+                    accountType: "Card",
+                    balance: 0,
+                    expiryDate: "",
+                    color: "#3b82f6",
+                    currency: "RUB",
+                  });
+                }}
+              >
+                ✕
+              </button>
             </div>
             <div className="modal__content">
               {error && <div className="app__error" style={{ marginBottom: "1rem" }}>⚠️ {error}</div>}
               <div className="form">
                 <label>
-                  Название счета
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem" }}>
+                    Название счета (необязательно)
+                    <HintTooltip text="Optional field. If left empty, we auto-generate a name from account type and number." />
+                  </span>
                   <input
                     value={newAccount.name}
-                    onChange={(e) => setNewAccount({ ...newAccount, name: e.target.value })}
+                    onChange={(e) => {
+                      setAccountNameFieldError(false);
+                      setNewAccount({ ...newAccount, name: e.target.value });
+                    }}
+                    className={accountNameFieldError ? "form-field--error" : undefined}
                     placeholder="Например: Основная карта"
                   />
                 </label>
                 <label>
-                  Тип счета
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem" }}>
+                    Тип счета
+                    <HintTooltip text="Account type controls which additional fields are shown and how the account is displayed." />
+                  </span>
                   <select
                     value={newAccount.accountType}
                     onChange={(e) =>
@@ -2333,7 +2670,10 @@ function App() {
                 </label>
                 {newAccount.accountType !== "Cash" && (
                   <label>
-                    Номер счета/карты
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem" }}>
+                      Номер счета/карты
+                      <HintTooltip text="Used for accounting and duplicate protection. For cards, only digits are accepted and shown in groups of 4." />
+                    </span>
                     <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
                       <input
                         value={newAccount.accountNumber}
@@ -2359,15 +2699,10 @@ function App() {
                 {newAccount.accountType === "Card" && (
                   <>
                     <label>
-                      Имя владельца
-                      <input
-                        value={newAccount.cardHolderName || ""}
-                        onChange={(e) => setNewAccount({ ...newAccount, cardHolderName: e.target.value })}
-                        placeholder="Micky Larson"
-                      />
-                    </label>
-                    <label>
-                      Срок действия
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem" }}>
+                        Срок действия
+                        <HintTooltip text="Optional field. Used only for card expiration reminders." />
+                      </span>
                       <input
                         value={newAccount.expiryDate || ""}
                         onChange={(e) => {
@@ -2390,18 +2725,39 @@ function App() {
                   </>
                 )}
                 <label>
-                  Цвет карты
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem" }}>
+                    Цвет карты
+                    <HintTooltip text="Pick a color for card gradient. Changes are applied right after saving the account." />
+                  </span>
                   <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
                     <input
                       type="color"
-                      value={newAccount.color || "#3b82f6"}
-                      onChange={(e) => setNewAccount({ ...newAccount, color: e.target.value })}
-                      style={{ width: "50px", height: "40px", cursor: "pointer", borderRadius: "4px", border: "1px solid #334155" }}
+                      value={(newAccount.color || "#3b82f6").toLowerCase()}
+                      onChange={(e) => setNewAccount({ ...newAccount, color: e.target.value.toLowerCase() })}
+                      style={{ width: "56px", height: "40px", cursor: "pointer", borderRadius: "6px", border: "1px solid #334155", padding: 0 }}
                     />
-                    <span style={{ color: "#cbd5e1", fontSize: "0.9rem" }}>
-                      {newAccount.color || "#3b82f6"}
+                    <span style={{ color: "#cbd5e1", fontSize: "0.9rem", letterSpacing: "0.03em" }}>
+                      {(newAccount.color || "#3b82f6").toLowerCase()}
                     </span>
                   </div>
+                  {newAccount.accountType === "Card" && (
+                    <div
+                      style={{
+                        marginTop: "0.6rem",
+                        borderRadius: "10px",
+                        padding: "0.85rem",
+                        color: "#fff",
+                        border: "1px solid rgba(255,255,255,0.18)",
+                        background: `linear-gradient(135deg, ${(newAccount.color || "#3b82f6").toLowerCase()} 0%, #0f172a 100%)`,
+                        boxShadow: "0 8px 22px rgba(0,0,0,0.28)",
+                      }}
+                    >
+                      <div style={{ fontSize: "0.72rem", opacity: 0.85, marginBottom: "0.35rem" }}>Live preview</div>
+                      <div style={{ fontSize: "0.95rem", letterSpacing: "0.08em", fontWeight: 600 }}>
+                        {(newAccount.accountNumber || "•••• •••• •••• ••••") as string}
+                      </div>
+                    </div>
+                  )}
                 </label>
                 <label>
                   {editingAccountId ? "Текущий баланс" : "Начальный баланс"}
@@ -2448,12 +2804,12 @@ function App() {
                               setSelectedAccountId(null);
                               setShowAccountModal(false);
                               setEditingAccountId(null);
+                              setAccountNameFieldError(false);
                               setNewAccount({
                                 name: "",
                                 accountNumber: "",
                                 accountType: "Card",
                                 balance: 0,
-                                cardHolderName: "",
                                 expiryDate: "",
                                 color: "#3b82f6",
                               });
@@ -2484,14 +2840,21 @@ function App() {
                   )}
                   <button
                     onClick={async () => {
-                      if (!newAccount.name.trim()) {
-                        setError("Введите название счета");
-                        return;
-                      }
+                      const trimmedAccountNumber = newAccount.accountNumber?.trim();
+                      const generatedAccountName =
+                        newAccount.accountType === "Cash"
+                          ? "Cash Wallet"
+                          : newAccount.accountType === "Card"
+                            ? `Card ${trimmedAccountNumber ? `*${trimmedAccountNumber.replace(/\s/g, "").slice(-4)}` : "Account"}`
+                            : newAccount.accountType === "Bank"
+                              ? "Bank Account"
+                              : "Savings Account";
+                      const effectiveAccountName = newAccount.name.trim() || generatedAccountName;
+
+                      setAccountNameFieldError(false);
                       
                       // Проверка на дубликаты
-                      const trimmedName = newAccount.name.trim();
-                      const trimmedAccountNumber = newAccount.accountNumber?.trim();
+                      const trimmedName = effectiveAccountName;
                       
                       if (editingAccountId) {
                         // При обновлении проверяем, что название не совпадает с другими счетами (кроме текущего)
@@ -2543,25 +2906,23 @@ function App() {
                         if (editingAccountId) {
                           // Обновление существующего счета
                           const response = await financialApi.updateAccount(editingAccountId, {
-                            name: newAccount.name,
+                            name: effectiveAccountName,
                             accountNumber: newAccount.accountNumber?.trim() || undefined,
                             accountType: newAccount.accountType,
-                          balance: newAccount.balance,
-                          cardHolderName: newAccount.cardHolderName?.trim() || undefined,
-                          expiryDate: newAccount.expiryDate?.trim() || undefined,
-                          color: newAccount.color || undefined,
-                          currency: newAccount.currency || "RUB",
-                          isActive: true,
-                        });
+                            balance: newAccount.balance,
+                            expiryDate: newAccount.expiryDate?.trim() || undefined,
+                            color: newAccount.color || undefined,
+                            currency: newAccount.currency || "RUB",
+                            isActive: true,
+                          });
                           setAccounts((prev) => prev.map(acc => acc.id === editingAccountId ? response.data : acc));
                         } else {
                           // Создание нового счета
                           const response = await financialApi.createAccount({
-                            name: newAccount.name,
+                            name: effectiveAccountName,
                             accountNumber: newAccount.accountNumber?.trim() || undefined,
                             accountType: newAccount.accountType,
                             balance: newAccount.balance,
-                            cardHolderName: newAccount.cardHolderName?.trim() || undefined,
                             expiryDate: newAccount.expiryDate?.trim() || undefined,
                             color: newAccount.color || undefined,
                             currency: newAccount.currency || undefined,
@@ -2576,12 +2937,12 @@ function App() {
                         }
                         setShowAccountModal(false);
                         setEditingAccountId(null);
+                        setAccountNameFieldError(false);
                         setNewAccount({
                           name: "",
                           accountNumber: "",
                           accountType: "Card",
                           balance: 0,
-                          cardHolderName: "",
                           expiryDate: "",
                           color: "#3b82f6",
                           currency: "RUB",
@@ -2620,11 +2981,12 @@ function App() {
                 <div>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
                     <h3>Категории</h3>
-                    <button 
+                    <button
                       onClick={() => {
                         setEditingCategoryId(null);
                         setCategoryForm({ name: "", hexColor: "#3B82F6", icon: undefined, parentId: undefined });
                         setError(null);
+                        setCategoryFieldErrors({ name: false });
                         setShowCategoryModal(true);
                       }}
                       style={{ padding: "0.5rem 1rem", background: "#3b82f6", color: "#fff", border: "none", borderRadius: "8px", cursor: "pointer", fontSize: "0.9rem", fontWeight: "500" }}
@@ -2668,6 +3030,7 @@ function App() {
                                   const hex = (category.hexColor || "#3B82F6").startsWith("#") ? category.hexColor : `#${category.hexColor}`;
                                   setCategoryForm({ name: "", hexColor: hex, icon: undefined, parentId: category.id });
                                   setError(null);
+                                  setCategoryFieldErrors({ name: false });
                                   setShowCategoryModal(true);
                                 }}
                                 style={{ fontSize: "0.85rem", padding: "0.25rem 0.5rem", display: "inline-flex", alignItems: "center", justifyContent: "center", cursor: "pointer", background: "transparent", border: "none", color: "#94a3b8" }}
@@ -2686,7 +3049,8 @@ function App() {
                                     parentId: category.parentId,
                                   });
                                   setError(null);
-                        setShowCategoryModal(true);
+                                  setCategoryFieldErrors({ name: false });
+                                  setShowCategoryModal(true);
                                 }}
                                 style={{ fontSize: "0.85rem", padding: "0.25rem 0.5rem", display: "inline-flex", alignItems: "center", justifyContent: "center", cursor: "pointer", background: "transparent", border: "none", color: "#fff" }}
                               >
@@ -2742,7 +3106,8 @@ function App() {
                                           parentId: category.id,
                                         });
                                         setError(null);
-                        setShowCategoryModal(true);
+                                        setCategoryFieldErrors({ name: false });
+                                        setShowCategoryModal(true);
                                       }}
                                       style={{ fontSize: "0.85rem", padding: "0.25rem 0.5rem", display: "inline-flex", alignItems: "center", justifyContent: "center", cursor: "pointer", background: "transparent", border: "none", color: "#fff" }}
                                     >
