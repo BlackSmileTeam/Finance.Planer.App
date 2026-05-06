@@ -1,4 +1,4 @@
-import { apiClient, setToken } from "./client";
+import { apiClient, setAuthUserJson, setToken } from "./client";
 import type {
   CategoryDto,
   CreateCategoryRequest,
@@ -48,6 +48,7 @@ export const financialApi = {
     const response = await apiClient.post<LoginResponseDto>("api/auth/login", payload);
     if (response.data.token) {
       setToken(response.data.token);
+      setAuthUserJson(JSON.stringify(response.data.user));
     }
     return response;
   },
@@ -56,6 +57,7 @@ export const financialApi = {
     const response = await apiClient.post<LoginResponseDto>("api/auth/register", payload);
     if (response.data.token) {
       setToken(response.data.token);
+      setAuthUserJson(JSON.stringify(response.data.user));
     }
     return response;
   },

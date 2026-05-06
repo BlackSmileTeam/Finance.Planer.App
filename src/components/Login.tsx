@@ -6,6 +6,13 @@ interface LoginProps {
   onLogin: () => void;
 }
 
+/** Basic RFC 5322–style check (aligned with server EmailAddress validation). */
+function isValidEmail(value: string): boolean {
+  const v = value.trim();
+  if (!v) return false;
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+}
+
 export function Login({ onLogin }: LoginProps) {
   const [isLogin, setIsLogin] = useState(true);
   const [isBusy, setIsBusy] = useState(false);
@@ -44,14 +51,34 @@ export function Login({ onLogin }: LoginProps) {
       setError("Заполните все обязательные поля");
       return;
     }
+    if (!isValidEmail(registerForm.email)) {
+      setError("Enter a valid email address.");
+      return;
+    }
 
     setIsBusy(true);
     setError(null);
     try {
-      await financialApi.register(registerForm);
+      await financialApi.register({
+        ...registerForm,
+        username: registerForm.username.trim(),
+        email: registerForm.email.trim(),
+      });
       onLogin();
-    } catch (err: any) {
-      setError(err.response?.data?.message || err.message || "Ошибка регистрации");
+    } catch (err: unknown) {
+      const ax = err as {
+        message?: string;
+        response?: { data?: { message?: string; errors?: Record<string, string[]>; title?: string } };
+      };
+      const d = ax.response?.data;
+      const emailErr = d?.errors?.Email?.[0] ?? d?.errors?.email?.[0];
+      setError(
+        emailErr ||
+          (typeof d === "object" && d && "message" in d ? (d as { message?: string }).message : undefined) ||
+          d?.title ||
+          ax.message ||
+          "Registration failed."
+      );
     } finally {
       setIsBusy(false);
     }

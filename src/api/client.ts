@@ -14,11 +14,21 @@ export function setToken(token: string): void {
     localStorage.setItem("authToken", token);
 }
 
+const authUserKey = "authUser";
+
+/// <summary>
+/// <para>Persists the logged-in user profile (for UI; token carries authorization).</para>
+/// </summary>
+export function setAuthUserJson(json: string): void {
+    localStorage.setItem(authUserKey, json);
+}
+
 /// <summary>
 /// <para>Removes the JWT token from localStorage.</para>
 /// </summary>
 export function removeToken(): void {
     localStorage.removeItem("authToken");
+    localStorage.removeItem(authUserKey);
     // Dispatch custom event to notify app about logout
     window.dispatchEvent(new Event("auth:logout"));
 }

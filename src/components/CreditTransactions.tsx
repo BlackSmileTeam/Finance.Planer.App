@@ -46,6 +46,7 @@ export function CreditTransactions({
     recordAsIncome: true,
     paymentMonths: 6,
   });
+  const [fieldErrors, setFieldErrors] = useState({ creditAccount: false, amount: false });
 
   useEffect(() => {
     loadTransactions();
@@ -55,6 +56,7 @@ export function CreditTransactions({
   useEffect(() => {
     if (showModal && creditAccounts.length === 1) {
       setForm((prev) => ({ ...prev, creditAccountId: creditAccounts[0].id }));
+      setFieldErrors((prev) => ({ ...prev, creditAccount: false }));
     }
   }, [showModal, creditAccounts]);
 
@@ -71,10 +73,14 @@ export function CreditTransactions({
   };
 
   const handleSubmit = async () => {
-    if (!form.creditAccountId || form.amount <= 0) {
+    const accErr = !form.creditAccountId;
+    const amountErr = form.amount <= 0;
+    if (accErr || amountErr) {
+      setFieldErrors({ creditAccount: accErr, amount: amountErr });
       setError("Заполните все обязательные поля");
       return;
     }
+    setFieldErrors({ creditAccount: false, amount: false });
 
     setIsBusy(true);
     try {
@@ -102,6 +108,7 @@ export function CreditTransactions({
       });
       setShowModal(false);
       setError(null);
+      setFieldErrors({ creditAccount: false, amount: false });
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -144,6 +151,7 @@ export function CreditTransactions({
 
   const handleNewClick = () => {
     setError(null);
+    setFieldErrors({ creditAccount: false, amount: false });
     setForm({
       creditAccountId: "",
       categoryId: "",
@@ -242,11 +250,11 @@ export function CreditTransactions({
       </section>
 
       {showModal && (
-        <div className="modal-overlay" onClick={() => { setShowModal(false); setError(null); }}>
+        <div className="modal-overlay" onClick={() => { setShowModal(false); setError(null); setFieldErrors({ creditAccount: false, amount: false }); }}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal__header">
               <h2>Добавить кредитную транзакцию</h2>
-              <button onClick={() => { setShowModal(false); setError(null); }}>✕</button>
+              <button onClick={() => { setShowModal(false); setError(null); setFieldErrors({ creditAccount: false, amount: false }); }}>✕</button>
             </div>
             <div className="modal__content">
               {error && <div className="app__error" style={{ marginBottom: "1rem" }}>⚠️ {error}</div>}
@@ -255,7 +263,11 @@ export function CreditTransactions({
                   Кредитная карта
                   <select
                     value={form.creditAccountId}
-                    onChange={(e) => setForm({ ...form, creditAccountId: e.target.value })}
+                    onChange={(e) => {
+                      setFieldErrors((prev) => ({ ...prev, creditAccount: false }));
+                      setForm({ ...form, creditAccountId: e.target.value });
+                    }}
+                    className={fieldErrors.creditAccount ? "form-field--error" : undefined}
                   >
                     <option value="">Выберите карту</option>
                     {creditAccounts
@@ -284,7 +296,12 @@ export function CreditTransactions({
                   <input
                     type="number"
                     value={form.amount}
-                    onChange={(e) => setForm({ ...form, amount: Number(e.target.value) })}
+                    onChange={(e) => {
+                      const n = Number(e.target.value);
+                      setForm({ ...form, amount: n });
+                      if (n > 0) setFieldErrors((prev) => ({ ...prev, amount: false }));
+                    }}
+                    className={fieldErrors.amount ? "form-field--error" : undefined}
                     min="0"
                     step="0.01"
                   />
@@ -318,7 +335,7 @@ export function CreditTransactions({
                   <button onClick={handleSubmit} disabled={isBusy}>
                     Создать транзакцию
                   </button>
-                  <button onClick={() => { setShowModal(false); setError(null); }}>Отмена</button>
+                  <button onClick={() => { setShowModal(false); setError(null); setFieldErrors({ creditAccount: false, amount: false }); }}>Отмена</button>
                 </div>
               </div>
             </div>

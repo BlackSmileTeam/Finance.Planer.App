@@ -8,6 +8,7 @@ import type {
   UpdateCreditAccountRequest,
 } from "../types";
 import { ConfirmationModal } from "./ConfirmationModal";
+import { HintTooltip } from "./HintTooltip";
 
 /** Сумма неоплаченных платежей по графику для данной карты (осталось оплатить). */
 function getRemainingToPay(accountId: string, transactions: CreditTransactionDto[]): number {
@@ -47,6 +48,7 @@ export function CreditAccounts() {
   const [error, setError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
+  const [nameFieldError, setNameFieldError] = useState(false);
   const [confirmationModal, setConfirmationModal] = useState<{
     isOpen: boolean;
     title: string;
@@ -92,10 +94,12 @@ export function CreditAccounts() {
   };
 
   const handleSubmit = async () => {
-    if (!form.name) {
+    if (!form.name?.trim()) {
+      setNameFieldError(true);
       setError("Введите название счета");
       return;
     }
+    setNameFieldError(false);
 
     setIsBusy(true);
     try {
@@ -137,6 +141,7 @@ export function CreditAccounts() {
       setEditingId(null);
       setShowModal(false);
       setError(null);
+      setNameFieldError(false);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -145,6 +150,7 @@ export function CreditAccounts() {
   };
 
   const handleEdit = (account: CreditAccountDto) => {
+    setNameFieldError(false);
     setForm({
       name: account.name,
       accountType: account.accountType,
@@ -185,6 +191,7 @@ export function CreditAccounts() {
   const handleNewClick = () => {
     setEditingId(null);
     setError(null);
+    setNameFieldError(false);
     setForm({
       name: "",
       accountType: "CreditCard",
@@ -289,11 +296,11 @@ export function CreditAccounts() {
       </section>
 
       {showModal && (
-        <div className="modal-overlay" onClick={() => { setShowModal(false); setError(null); }}>
+        <div className="modal-overlay" onClick={() => { setShowModal(false); setError(null); setNameFieldError(false); }}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal__header">
               <h2>{editingId ? "Редактировать" : "Добавить"} кредитный счет</h2>
-              <button onClick={() => { setShowModal(false); setError(null); }}>✕</button>
+              <button onClick={() => { setShowModal(false); setError(null); setNameFieldError(false); }}>✕</button>
             </div>
             <div className="modal__content">
               {error && <div className="app__error" style={{ marginBottom: "1rem" }}>⚠️ {error}</div>}
@@ -302,7 +309,11 @@ export function CreditAccounts() {
                   Название счета
                   <input
                     value={form.name}
-                    onChange={(e) => setForm({ ...form, name: e.target.value })}
+                    onChange={(e) => {
+                      setNameFieldError(false);
+                      setForm({ ...form, name: e.target.value });
+                    }}
+                    className={nameFieldError ? "form-field--error" : undefined}
                     placeholder="Например: Основная кредитка"
                   />
                 </label>
@@ -384,7 +395,13 @@ export function CreditAccounts() {
                   />
                 </label>
                 <label>
-                  Текущий баланс (задолженность)
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem" }}>
+                    Текущий баланс (задолженность)
+                    <HintTooltip
+                      text="Задайте текущую задолженность по счёту, чтобы вести расчёты с этого момента и устранить нестыковки."
+                      ariaLabel="Подсказка по текущей задолженности"
+                    />
+                  </span>
                   <input
                     type="number"
                     value={form.currentBalance ?? ""}
@@ -392,9 +409,6 @@ export function CreditAccounts() {
                     step="0.01"
                     placeholder="0"
                   />
-                  <span style={{ fontSize: "0.85rem", color: "#94a3b8", marginTop: "0.25rem", display: "block" }}>
-                    Задайте текущую задолженность по счёту, чтобы вести расчёты с этого момента и устранить нестыковки.
-                  </span>
                 </label>
                 <label>
                   Заметки
@@ -407,7 +421,7 @@ export function CreditAccounts() {
                   <button onClick={handleSubmit} disabled={isBusy}>
                     {editingId ? "Обновить" : "Создать"}
                   </button>
-                  <button onClick={() => { setShowModal(false); setError(null); }}>Отмена</button>
+                  <button onClick={() => { setShowModal(false); setError(null); setNameFieldError(false); }}>Отмена</button>
                 </div>
               </div>
             </div>

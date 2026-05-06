@@ -39,10 +39,12 @@ export function Investments({ onDelete, investments }: InvestmentsProps) {
     currentValue: undefined,
     notes: "",
   });
+  const [fieldErrors, setFieldErrors] = useState({ title: false, amount: false });
 
   const handleNewClick = () => {
     setError(null);
     setEditingId(null);
+    setFieldErrors({ title: false, amount: false });
     setForm({
       title: "",
       investmentType: "Stock",
@@ -64,10 +66,14 @@ export function Investments({ onDelete, investments }: InvestmentsProps) {
 
 
   const handleSubmit = async () => {
-    if (!form.title || form.amount <= 0) {
+    const titleErr = !form.title?.trim();
+    const amountErr = form.amount <= 0;
+    if (titleErr || amountErr) {
+      setFieldErrors({ title: titleErr, amount: amountErr });
       setError("Заполните все обязательные поля");
       return;
     }
+    setFieldErrors({ title: false, amount: false });
 
     setIsBusy(true);
     try {
@@ -88,6 +94,7 @@ export function Investments({ onDelete, investments }: InvestmentsProps) {
       setEditingId(null);
       setShowModal(false);
       setError(null);
+      setFieldErrors({ title: false, amount: false });
       // Reload will be handled by parent
     } catch (err: any) {
       setError(err.message);
@@ -98,6 +105,7 @@ export function Investments({ onDelete, investments }: InvestmentsProps) {
 
   const handleEdit = (investment: InvestmentDto) => {
     setError(null);
+    setFieldErrors({ title: false, amount: false });
     setForm({
       title: investment.title,
       investmentType: investment.investmentType,
@@ -189,11 +197,11 @@ export function Investments({ onDelete, investments }: InvestmentsProps) {
       )}
 
       {showModal && (
-        <div className="modal-overlay" onClick={() => setShowModal(false)}>
+        <div className="modal-overlay" onClick={() => { setShowModal(false); setFieldErrors({ title: false, amount: false }); }}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal__header">
               <h2>{editingId ? "Редактировать" : "Добавить"} инвестицию</h2>
-              <button onClick={() => setShowModal(false)}>✕</button>
+              <button onClick={() => { setShowModal(false); setFieldErrors({ title: false, amount: false }); }}>✕</button>
             </div>
             <div className="modal__content">
               {error && <div className="app__error" style={{ marginBottom: "1rem" }}>⚠️ {error}</div>}
@@ -202,7 +210,16 @@ export function Investments({ onDelete, investments }: InvestmentsProps) {
                   Название
                   <input
                     value={form.title}
-                    onChange={(e) => setForm({ ...form, title: e.target.value })}
+                    onChange={(e) => {
+                      setFieldErrors((prev) => ({ ...prev, title: false }));
+                      setForm({ ...form, title: e.target.value });
+                    }}
+                    className={fieldErrors.title ? "form-field--error" : undefined}
+                    style={
+                      fieldErrors.title
+                        ? { borderColor: "#ef4444", boxShadow: "0 0 0 3px rgba(239, 68, 68, 0.18)" }
+                        : undefined
+                    }
                     placeholder="Например: Сбербанк акции"
                   />
                 </label>
@@ -225,7 +242,17 @@ export function Investments({ onDelete, investments }: InvestmentsProps) {
                   <input
                     type="number"
                     value={form.amount}
-                    onChange={(e) => setForm({ ...form, amount: Number(e.target.value) })}
+                    onChange={(e) => {
+                      const n = Number(e.target.value);
+                      setForm({ ...form, amount: n });
+                      if (n > 0) setFieldErrors((prev) => ({ ...prev, amount: false }));
+                    }}
+                    className={fieldErrors.amount ? "form-field--error" : undefined}
+                    style={
+                      fieldErrors.amount
+                        ? { borderColor: "#ef4444", boxShadow: "0 0 0 3px rgba(239, 68, 68, 0.18)" }
+                        : undefined
+                    }
                     min="0"
                     step="0.01"
                   />
@@ -261,7 +288,7 @@ export function Investments({ onDelete, investments }: InvestmentsProps) {
                   <button onClick={handleSubmit} disabled={isBusy}>
                     {editingId ? "Обновить" : "Создать"}
                   </button>
-                  <button onClick={() => { setShowModal(false); setError(null); }}>Отмена</button>
+                  <button onClick={() => { setShowModal(false); setError(null); setFieldErrors({ title: false, amount: false }); }}>Отмена</button>
                 </div>
               </div>
             </div>

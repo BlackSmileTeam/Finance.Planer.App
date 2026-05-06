@@ -130,6 +130,7 @@ export function IncomeRecords({ onNewClick, onDelete, records, incomeCycles = []
   });
   /** Строка для поля ввода суммы (пустая = показываем "0", запятая разрешена). */
   const [amountInput, setAmountInput] = useState("");
+  const [fieldErrors, setFieldErrors] = useState({ title: false, amount: false });
   const [recurringFields, setRecurringFields] = useState({
     frequency: "Monthly" as "Weekly" | "BiWeekly" | "Monthly" | "Quarterly" | "Yearly",
     startDate: dayjs().format("YYYY-MM-DD"),
@@ -152,6 +153,7 @@ export function IncomeRecords({ onNewClick, onDelete, records, incomeCycles = []
         isPlanned: false,
       });
     setAmountInput("");
+    setFieldErrors({ title: false, amount: false });
     setRecurringFields({
       frequency: "Monthly",
       startDate: dayjs().format("YYYY-MM-DD"),
@@ -170,10 +172,14 @@ export function IncomeRecords({ onNewClick, onDelete, records, incomeCycles = []
   }, []);
 
   const handleSubmit = async () => {
-    if (!form.title || form.amount <= 0) {
+    const titleErr = !form.title?.trim();
+    const amountErr = form.amount <= 0;
+    if (titleErr || amountErr) {
+      setFieldErrors({ title: titleErr, amount: amountErr });
       setError("Заполните все обязательные поля");
       return;
     }
+    setFieldErrors({ title: false, amount: false });
 
     setIsBusy(true);
     try {
@@ -246,6 +252,7 @@ export function IncomeRecords({ onNewClick, onDelete, records, incomeCycles = []
       setEditingId(null);
       setShowModal(false);
       setError(null);
+      setFieldErrors({ title: false, amount: false });
       if (onSuccess) {
         onSuccess(editingId ? "Доход успешно обновлен" : "Доход успешно добавлен");
       }
@@ -259,6 +266,7 @@ export function IncomeRecords({ onNewClick, onDelete, records, incomeCycles = []
 
   const handleEdit = (record: IncomeRecordDto) => {
     setError(null);
+    setFieldErrors({ title: false, amount: false });
     const cycle = record.incomeCycleId ? incomeCycles.find((c) => c.id === record.incomeCycleId) : undefined;
     const isEditingCycle = record.id === record.incomeCycleId;
     const isEditingCycleEntry = isCycleGeneratedId(record.id) && record.incomeCycleId;
@@ -744,11 +752,11 @@ export function IncomeRecords({ onNewClick, onDelete, records, incomeCycles = []
       )}
 
       {showModal && (
-        <div className="modal-overlay" onClick={() => { setShowModal(false); setError(null); }}>
+        <div className="modal-overlay" onClick={() => { setShowModal(false); setError(null); setFieldErrors({ title: false, amount: false }); }}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal__header">
               <h2>{editingId ? "Редактировать" : "Добавить"} доход</h2>
-              <button onClick={() => { setShowModal(false); setError(null); }}>✕</button>
+              <button onClick={() => { setShowModal(false); setError(null); setFieldErrors({ title: false, amount: false }); }}>✕</button>
             </div>
             <div className="modal__content">
               {error && <div className="app__error" style={{ marginBottom: "1rem" }}>⚠️ {error}</div>}
@@ -757,7 +765,16 @@ export function IncomeRecords({ onNewClick, onDelete, records, incomeCycles = []
                   Название
                   <input
                     value={form.title}
-                    onChange={(e) => setForm({ ...form, title: e.target.value })}
+                    onChange={(e) => {
+                      setFieldErrors((prev) => ({ ...prev, title: false }));
+                      setForm({ ...form, title: e.target.value });
+                    }}
+                    className={fieldErrors.title ? "form-field--error" : undefined}
+                    style={
+                      fieldErrors.title
+                        ? { borderColor: "#ef4444", boxShadow: "0 0 0 3px rgba(239, 68, 68, 0.18)" }
+                        : undefined
+                    }
                     placeholder="Например: Зарплата"
                   />
                 </label>
@@ -775,9 +792,17 @@ export function IncomeRecords({ onNewClick, onDelete, records, incomeCycles = []
                         const raw = e.target.value;
                         const filtered = filterAmountInput(raw);
                         setAmountInput(filtered);
-                        setForm({ ...form, amount: parseAmountStr(filtered) });
+                        const amt = parseAmountStr(filtered);
+                        setForm({ ...form, amount: amt });
+                        if (amt > 0) setFieldErrors((prev) => ({ ...prev, amount: false }));
                       }}
-                      style={{ flex: 1 }}
+                      className={fieldErrors.amount ? "form-field--error" : undefined}
+                      style={{
+                        flex: 1,
+                        ...(fieldErrors.amount
+                          ? { borderColor: "#ef4444", boxShadow: "0 0 0 3px rgba(239, 68, 68, 0.18)" }
+                          : {}),
+                      }}
                     />
                   </div>
                   <div style={{ display: "flex", flexDirection: "column" }}>
@@ -863,8 +888,7 @@ export function IncomeRecords({ onNewClick, onDelete, records, incomeCycles = []
                         onChange={(e) => {
                           const planned = e.target.checked;
                           setForm({ ...form, isPlanned: planned });
-                          if (planned) {
-                            setIsRecurring(true);
+                          if (planned && isRecurring) {
                             setRecurringFields((prev) => ({ ...prev, startDate: form.receivedDate }));
                           }
                         }}
@@ -940,7 +964,7 @@ export function IncomeRecords({ onNewClick, onDelete, records, incomeCycles = []
                   <button onClick={handleSubmit} disabled={isBusy}>
                     {editingId ? "Обновить" : isRecurring ? "Создать повторяющийся доход" : "Создать доход"}
                   </button>
-                  <button onClick={() => { setShowModal(false); setError(null); }}>Отмена</button>
+                  <button onClick={() => { setShowModal(false); setError(null); setFieldErrors({ title: false, amount: false }); }}>Отмена</button>
                 </div>
               </div>
             </div>

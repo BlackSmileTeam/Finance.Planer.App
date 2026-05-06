@@ -41,6 +41,7 @@ export function RecurringExpenses({ categories, onUpdate }: RecurringExpensesPro
     frequency: "Monthly",
     notes: "",
   });
+  const [fieldErrors, setFieldErrors] = useState({ category: false, title: false, amount: false });
 
   useEffect(() => {
     loadExpenses();
@@ -59,10 +60,15 @@ export function RecurringExpenses({ categories, onUpdate }: RecurringExpensesPro
   };
 
   const handleSubmit = async () => {
-    if (!form.categoryId || !form.title || form.amount <= 0) {
+    const categoryErr = !form.categoryId;
+    const titleErr = !form.title?.trim();
+    const amountErr = form.amount <= 0;
+    if (categoryErr || titleErr || amountErr) {
+      setFieldErrors({ category: categoryErr, title: titleErr, amount: amountErr });
       setError("Заполните все обязательные поля");
       return;
     }
+    setFieldErrors({ category: false, title: false, amount: false });
 
     setIsBusy(true);
     try {
@@ -90,6 +96,7 @@ export function RecurringExpenses({ categories, onUpdate }: RecurringExpensesPro
       setEditingId(null);
       setShowModal(false);
       setError(null);
+      setFieldErrors({ category: false, title: false, amount: false });
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -99,6 +106,7 @@ export function RecurringExpenses({ categories, onUpdate }: RecurringExpensesPro
 
   const handleEdit = (expense: RecurringExpenseDto) => {
     setError(null);
+    setFieldErrors({ category: false, title: false, amount: false });
     setForm({
       categoryId: expense.categoryId,
       subcategoryId: expense.subcategoryId,
@@ -137,6 +145,7 @@ export function RecurringExpenses({ categories, onUpdate }: RecurringExpensesPro
   const handleNewClick = () => {
     setEditingId(null);
     setError(null);
+    setFieldErrors({ category: false, title: false, amount: false });
     setForm({
       categoryId: "",
       subcategoryId: undefined,
@@ -212,11 +221,11 @@ export function RecurringExpenses({ categories, onUpdate }: RecurringExpensesPro
       </section>
 
       {showModal && (
-        <div className="modal-overlay" onClick={() => { setShowModal(false); setError(null); }}>
+        <div className="modal-overlay" onClick={() => { setShowModal(false); setError(null); setFieldErrors({ category: false, title: false, amount: false }); }}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal__header">
               <h2>{editingId ? "Редактировать" : "Добавить"} повторяющийся расход</h2>
-              <button onClick={() => { setShowModal(false); setError(null); }}>✕</button>
+              <button onClick={() => { setShowModal(false); setError(null); setFieldErrors({ category: false, title: false, amount: false }); }}>✕</button>
             </div>
             <div className="modal__content">
               {error && <div className="app__error" style={{ marginBottom: "1rem" }}>⚠️ {error}</div>}
@@ -225,9 +234,11 @@ export function RecurringExpenses({ categories, onUpdate }: RecurringExpensesPro
                   Категория
                   <select
                     value={form.categoryId}
-                    onChange={(e) =>
-                      setForm({ ...form, categoryId: e.target.value, subcategoryId: undefined })
-                    }
+                    onChange={(e) => {
+                      setFieldErrors((prev) => ({ ...prev, category: false }));
+                      setForm({ ...form, categoryId: e.target.value, subcategoryId: undefined });
+                    }}
+                    className={fieldErrors.category ? "form-field--error" : undefined}
                   >
                     <option value="">Выберите категорию</option>
                     {categories
@@ -261,7 +272,11 @@ export function RecurringExpenses({ categories, onUpdate }: RecurringExpensesPro
                   Название
                   <input
                     value={form.title}
-                    onChange={(e) => setForm({ ...form, title: e.target.value })}
+                    onChange={(e) => {
+                      setFieldErrors((prev) => ({ ...prev, title: false }));
+                      setForm({ ...form, title: e.target.value });
+                    }}
+                    className={fieldErrors.title ? "form-field--error" : undefined}
                     placeholder="Например: Аренда квартиры"
                   />
                 </label>
@@ -270,7 +285,12 @@ export function RecurringExpenses({ categories, onUpdate }: RecurringExpensesPro
                   <input
                     type="number"
                     value={form.amount}
-                    onChange={(e) => setForm({ ...form, amount: Number(e.target.value) })}
+                    onChange={(e) => {
+                      const n = Number(e.target.value);
+                      setForm({ ...form, amount: n });
+                      if (n > 0) setFieldErrors((prev) => ({ ...prev, amount: false }));
+                    }}
+                    className={fieldErrors.amount ? "form-field--error" : undefined}
                     min="0"
                     step="0.01"
                   />
@@ -317,7 +337,7 @@ export function RecurringExpenses({ categories, onUpdate }: RecurringExpensesPro
                   <button onClick={handleSubmit} disabled={isBusy}>
                     {editingId ? "Обновить" : "Создать"}
                   </button>
-                  <button onClick={() => { setShowModal(false); setError(null); }}>Отмена</button>
+                  <button onClick={() => { setShowModal(false); setError(null); setFieldErrors({ category: false, title: false, amount: false }); }}>Отмена</button>
                 </div>
               </div>
             </div>

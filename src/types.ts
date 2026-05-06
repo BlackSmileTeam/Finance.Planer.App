@@ -447,6 +447,8 @@ export interface UserDto {
   username: string;
   email: string;
   fullName?: string;
+  /** When true, user may create/update/delete categories (server enforces the same). */
+  isAdministrator?: boolean;
 }
 
 /// <summary>
@@ -645,7 +647,6 @@ export interface AccountDto {
   accountNumber: string;
   accountType: "Cash" | "Bank" | "Card" | "Savings";
   balance: number;
-  cardHolderName?: string;
   expiryDate?: string;
   color?: string;
   currency?: string;
@@ -661,7 +662,6 @@ export interface CreateAccountRequest {
   accountNumber?: string;
   accountType: "Cash" | "Bank" | "Card" | "Savings";
   balance: number;
-  cardHolderName?: string;
   expiryDate?: string;
   color?: string;
   currency?: string;
@@ -675,7 +675,6 @@ export interface UpdateAccountRequest {
   accountNumber?: string;
   accountType: "Cash" | "Bank" | "Card" | "Savings";
   balance: number;
-  cardHolderName?: string;
   expiryDate?: string;
   color?: string;
   currency?: string;
