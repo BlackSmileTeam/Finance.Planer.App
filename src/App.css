@@ -948,6 +948,20 @@ body::-webkit-scrollbar-button {
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
+.form input.form-field--error,
+.form select.form-field--error,
+.form textarea.form-field--error {
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15) !important;
+}
+
+.form input.form-field--error:focus,
+.form select.form-field--error:focus,
+.form textarea.form-field--error:focus {
+  border-color: #f87171 !important;
+  box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.22) !important;
+}
+
 .form textarea {
   width: 100%;
   max-width: 100%;
@@ -973,12 +987,14 @@ body::-webkit-scrollbar-button {
 
 .hint-tooltip__content {
   position: absolute;
-  top: calc(100% + 8px);
+  bottom: calc(100% + 8px);
   left: 50%;
   transform: translateX(-50%);
-  min-width: 220px;
-  max-width: 360px;
-  width: max-content;
+  min-width: 0;
+  max-width: min(320px, 78vw);
+  width: max(180px, 100%);
+  white-space: normal;
+  word-break: break-word;
   background: #0f172a;
   color: #e2e8f0;
   border: 1px solid #334155;

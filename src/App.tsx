@@ -2672,7 +2672,7 @@ function App() {
                 <label>
                   <span style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem" }}>
                     Название счета (необязательно)
-                    <HintTooltip text="Optional field. If left empty, we auto-generate a name from account type and number." />
+                    <HintTooltip text="Поле необязательное. Если оставить пустым, название счета будет сгенерировано автоматически по типу и номеру." />
                   </span>
                   <input
                     value={newAccount.name}
@@ -2687,7 +2687,7 @@ function App() {
                 <label>
                   <span style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem" }}>
                     Тип счета
-                    <HintTooltip text="Account type controls which additional fields are shown and how the account is displayed." />
+                    <HintTooltip text="Тип счета определяет, какие дополнительные поля показываются и как счет отображается в списке." />
                   </span>
                   <select
                     value={newAccount.accountType}
@@ -2708,7 +2708,7 @@ function App() {
                   <label>
                     <span style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem" }}>
                       Номер счета/карты
-                      <HintTooltip text="Used for accounting and duplicate protection. For cards, only digits are accepted and shown in groups of 4." />
+                      <HintTooltip text="Используется для учета и проверки на дубликаты. Для карты вводятся только цифры, которые автоматически группируются по 4." />
                     </span>
                     <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
                       <input
@@ -2737,7 +2737,7 @@ function App() {
                     <label>
                       <span style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem" }}>
                         Срок действия
-                        <HintTooltip text="Optional field. Used only for card expiration reminders." />
+                        <HintTooltip text="Поле необязательное. Используется только для напоминаний об окончании срока действия карты." />
                       </span>
                       <input
                         value={newAccount.expiryDate || ""}
@@ -2763,7 +2763,7 @@ function App() {
                 <label>
                   <span style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem" }}>
                     Цвет карты
-                    <HintTooltip text="Pick a color for card gradient. Changes are applied right after saving the account." />
+                    <HintTooltip text="Выберите цвет карты. После сохранения цвет применится к карточке счета." />
                   </span>
                   <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
                     <input
@@ -2788,7 +2788,7 @@ function App() {
                         boxShadow: "0 8px 22px rgba(0,0,0,0.28)",
                       }}
                     >
-                      <div style={{ fontSize: "0.72rem", opacity: 0.85, marginBottom: "0.35rem" }}>Live preview</div>
+                      <div style={{ fontSize: "0.72rem", opacity: 0.85, marginBottom: "0.35rem" }}>Предпросмотр</div>
                       <div style={{ fontSize: "0.95rem", letterSpacing: "0.08em", fontWeight: 600 }}>
                         {(newAccount.accountNumber || "•••• •••• •••• ••••") as string}
                       </div>
