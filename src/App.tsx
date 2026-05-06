@@ -334,7 +334,7 @@ function App() {
       return;
     }
     setIsBusy(true);
-    Promise.all([
+    Promise.allSettled([
       financialApi.getCategories(),
       financialApi.getSummaries(selectedYear),
       financialApi.getCreditAccounts(),
@@ -347,35 +347,51 @@ function App() {
       financialApi.getPendingPlannedExpenses(),
       financialApi.getPendingPlannedIncome(),
     ])
-      .then(([categoryResponse, summaryResponse, creditAccountsResponse, recurringExpensesResponse, incomeRecordsResponse, incomeCyclesResponse, investmentsResponse, accountsResponse, pendingPaymentsResponse, pendingExpensesResponse, pendingIncomeResponse]) => {
-        const cats = categoryResponse.data;
+      .then((results) => {
+        const errors: string[] = [];
+        const getData = <T,>(index: number, fallback: T): T => {
+          const result = results[index];
+          if (result.status === "fulfilled") {
+            return result.value.data as T;
+          }
+          const reason = (result.reason as { message?: string } | undefined)?.message ?? "Unknown error";
+          errors.push(reason);
+          return fallback;
+        };
+
+        const cats = getData(0, [] as CategoryDto[]);
         setCategories(cats);
-        // Категории с подкатегориями свернуты по умолчанию
         const parentIdsToCollapse = cats.filter((c) => c.subcategories && c.subcategories.length > 0).map((c) => c.id);
         setCollapsedCategoryIds(new Set(parentIdsToCollapse));
-        setSummaries(summaryResponse.data);
-        setCreditAccounts(creditAccountsResponse.data);
-        setRecurringExpenses(recurringExpensesResponse.data);
-        setIncomeRecords(incomeRecordsResponse.data);
-        setIncomeCycles(incomeCyclesResponse.data);
-        setInvestments(investmentsResponse.data);
-        setAccounts(accountsResponse.data);
-        setPendingPayments(pendingPaymentsResponse.data);
+
+        setSummaries(getData(1, [] as MonthlySummaryDto[]));
+        setCreditAccounts(getData(2, [] as CreditAccountDto[]));
+        setRecurringExpenses(getData(3, [] as RecurringExpenseDto[]));
+        setIncomeRecords(getData(4, [] as IncomeRecordDto[]));
+        setIncomeCycles(getData(5, [] as IncomeCycleDto[]));
+        setInvestments(getData(6, [] as InvestmentDto[]));
+        setAccounts(getData(7, [] as AccountDto[]));
+        setPendingPayments(getData(8, [] as PendingCreditPaymentDto[]));
         setCurrentPaymentIndex(0);
-        // Combine pending expenses and income
-        const allPending = [...pendingExpensesResponse.data, ...pendingIncomeResponse.data];
-        setPendingPlannedTransactions(allPending);
+
+        const pendingExpenses = getData(9, [] as PendingPlannedTransactionDto[]);
+        const pendingIncome = getData(10, [] as PendingPlannedTransactionDto[]);
+        setPendingPlannedTransactions([...pendingExpenses, ...pendingIncome]);
         setCurrentPlannedTransactionIndex(0);
-        if (categoryResponse.data.length > 0) {
+
+        if (cats.length > 0) {
           setExpenseForm((prev) => ({
             ...prev,
-            ...resolveExpenseCategoryFields(prev.categoryId, prev.subcategoryId, categoryResponse.data, {
+            ...resolveExpenseCategoryFields(prev.categoryId, prev.subcategoryId, cats, {
               fallbackToFirstParent: true,
             }),
           }));
         }
+
+        if (errors.length > 0) {
+          setError(`Некоторые данные не загрузились (${errors.length}). Проверьте API логи.`);
+        }
       })
-      .catch((err) => setError(err.message))
       .finally(() => setIsBusy(false));
   }, [selectedYear, isAuthenticated]);
 
