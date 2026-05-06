@@ -396,6 +396,26 @@ function App() {
   }, [selectedYear, isAuthenticated]);
 
   /// <summary>
+  /// <para>Loads accounts independently to avoid losing them on unrelated request failures.</para>
+  /// </summary>
+  useEffect(() => {
+    if (!isAuthenticated) {
+      return;
+    }
+
+    financialApi
+      .getAccounts()
+      .then((response) => {
+        setAccounts(response.data);
+      })
+      .catch((err) => {
+        const status = err?.response?.status;
+        const detail = err?.response?.data?.message ?? err?.response?.data?.detail ?? err?.message ?? "Unknown error";
+        setError(`Не удалось загрузить счета${status ? ` (HTTP ${status})` : ""}: ${detail}`);
+      });
+  }, [isAuthenticated]);
+
+  /// <summary>
   /// <para>Loads month-specific data whenever selection changes.</para>
   /// </summary>
   useEffect(() => {
