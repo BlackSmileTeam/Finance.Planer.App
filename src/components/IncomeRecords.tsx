@@ -71,6 +71,12 @@ function parseAmountStr(s: string): number {
   return Number.isNaN(n) ? 0 : n;
 }
 
+function isFutureDate(date: string): boolean {
+  const selected = dayjs(date).startOf("day");
+  const today = dayjs().startOf("day");
+  return selected.isAfter(today);
+}
+
 interface IncomeRecordsProps {
   selectedYear?: number; // Used by parent for filtering
   selectedMonth?: number; // Used by parent for filtering
@@ -195,7 +201,7 @@ export function IncomeRecords({ onNewClick, onDelete, records, incomeCycles = []
             frequency: recurringFields.frequency,
             notes: recurringFields.notes || form.notes || undefined,
             accountId: accountId || undefined,
-            isPlanned: form.isPlanned || false,
+            isPlanned: isFutureDate(recurringFields.startDate),
           });
         } else if (isCycleGeneratedId(editingId)) {
           const cycleId = getCycleIdFromSyntheticId(editingId);
@@ -208,10 +214,13 @@ export function IncomeRecords({ onNewClick, onDelete, records, incomeCycles = []
             frequency: recurringFields.frequency,
             notes: recurringFields.notes || form.notes || undefined,
             accountId: accountId || undefined,
-            isPlanned: form.isPlanned || false,
+            isPlanned: isFutureDate(recurringFields.startDate),
           });
         } else {
-          await financialApi.updateIncomeRecord(editingId, form);
+          await financialApi.updateIncomeRecord(editingId, {
+            ...form,
+            isPlanned: isFutureDate(form.receivedDate),
+          });
         }
       } else {
         if (isRecurring) {
@@ -225,11 +234,14 @@ export function IncomeRecords({ onNewClick, onDelete, records, incomeCycles = []
             frequency: recurringFields.frequency,
             notes: recurringFields.notes || form.notes || undefined,
             accountId: accountId || undefined,
-            isPlanned: form.isPlanned || false,
+            isPlanned: isFutureDate(recurringFields.startDate),
           });
         } else {
           // Создаем обычный доход (IncomeRecord)
-          await financialApi.createIncomeRecord(form);
+          await financialApi.createIncomeRecord({
+            ...form,
+            isPlanned: isFutureDate(form.receivedDate),
+          });
         }
       }
       setForm({
@@ -271,7 +283,6 @@ export function IncomeRecords({ onNewClick, onDelete, records, incomeCycles = []
     const isEditingCycle = record.id === record.incomeCycleId;
     const isEditingCycleEntry = isCycleGeneratedId(record.id) && record.incomeCycleId;
     const isRecurringEdit = isEditingCycle || isEditingCycleEntry;
-    // Для повторяющегося дохода берём «Планируемый» из цикла, иначе галочка снимается у подтверждённых записей
     const effectiveIsPlanned = cycle && isRecurringEdit ? (cycle.isPlanned ?? false) : (record.isPlanned ?? false);
     setForm({
       incomeCycleId: record.incomeCycleId,
@@ -827,9 +838,7 @@ export function IncomeRecords({ onNewClick, onDelete, records, incomeCycles = []
                     onChange={(e) => {
                       const date = e.target.value;
                       setForm({ ...form, receivedDate: date });
-                      if (form.isPlanned && isRecurring) {
-                        setRecurringFields((prev) => ({ ...prev, startDate: date }));
-                      }
+                      if (isRecurring) setRecurringFields((prev) => ({ ...prev, startDate: date }));
                     }}
                   />
                 </label>
@@ -884,28 +893,11 @@ export function IncomeRecords({ onNewClick, onDelete, records, incomeCycles = []
                     <label style={{ flexDirection: "row", alignItems: "center", gap: "0.5rem" }}>
                       <input
                         type="checkbox"
-                        checked={form.isPlanned || false}
-                        onChange={(e) => {
-                          const planned = e.target.checked;
-                          setForm({ ...form, isPlanned: planned });
-                          if (planned && isRecurring) {
-                            setRecurringFields((prev) => ({ ...prev, startDate: form.receivedDate }));
-                          }
-                        }}
-                      />
-                      <span>Планируемый</span>
-                    </label>
-                    <label style={{ flexDirection: "row", alignItems: "center", gap: "0.5rem" }}>
-                      <input
-                        type="checkbox"
                         checked={isRecurring}
                         onChange={(e) => setIsRecurring(e.target.checked)}
-                        disabled={!!editingId && (incomeCycles.some((c) => c.id === editingId) || isCycleGeneratedId(editingId))}
                       />
                       <span>Повторяющийся доход</span>
-                      {form.isPlanned && (
-                        <HintTooltip text="При включённом «Повторяющийся доход» плановый доход будет отображаться в выбранном месяце и во всех последующих." />
-                      )}
+                      <HintTooltip text="Планируемый доход определяется автоматически: будущая дата = планируемый, сегодня или прошедшая дата = фактический." />
                     </label>
                   </>
                 )}

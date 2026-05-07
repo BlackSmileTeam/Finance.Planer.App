@@ -77,6 +77,12 @@ function parseAmountStr(s: string): number {
   return Number.isNaN(n) ? 0 : n;
 }
 
+function isFutureDate(date: string): boolean {
+  const selected = dayjs(date).startOf("day");
+  const today = dayjs().startOf("day");
+  return selected.isAfter(today);
+}
+
 /**
  * Aligns expense form category/subcategory with parent options (case-insensitive ids, subcategory stored as category, etc.).
  */
@@ -219,7 +225,6 @@ function App() {
     startDate: dayjs().format("YYYY-MM-DD"),
     endDate: undefined as string | undefined,
     notes: "",
-    isPlanned: false,
   });
   const [isBusy, setIsBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -649,7 +654,7 @@ function App() {
             frequency: recurringFields.frequency,
             notes: recurringFields.notes || undefined,
             isActive: recurringExpense?.isActive ?? true,
-            isPlanned: recurringFields.isPlanned || false,
+            isPlanned: isFutureDate(recurringFields.startDate),
           });
         } else {
           await financialApi.createRecurringExpense({
@@ -661,7 +666,7 @@ function App() {
             endDate: recurringFields.endDate,
             frequency: recurringFields.frequency,
             notes: recurringFields.notes || undefined,
-            isPlanned: recurringFields.isPlanned || false,
+            isPlanned: isFutureDate(recurringFields.startDate),
           });
         }
         // Reload recurring expenses
@@ -685,6 +690,7 @@ function App() {
               frequency: recurringFields.frequency,
               notes: recurringFields.notes || undefined,
               isActive: recurringExpense?.isActive ?? true,
+              isPlanned: isFutureDate(recurringFields.startDate),
             });
             const refreshedRecurring = await financialApi.getRecurringExpenses();
             setRecurringExpenses(refreshedRecurring.data);
@@ -700,7 +706,7 @@ function App() {
               currency: expenseForm.currency,
               accountId: expenseForm.accountId || null,
               creditAccountId: expenseForm.creditAccountId || null,
-              isPlanned: expenseForm.isPlanned || false,
+              isPlanned: isFutureDate(expenseForm.expenseDate),
             });
           }
         } else {
@@ -709,6 +715,7 @@ function App() {
             categoryId: resolvedCategoryId,
             subcategoryId: resolvedSubcategoryId,
             amount: Number(expenseForm.amount),
+            isPlanned: isFutureDate(expenseForm.expenseDate),
             creditAccountId: expenseForm.creditAccountId || undefined,
             paymentMonths: expenseForm.creditAccountId ? (expenseForm.paymentMonths ?? 6) : undefined,
           });
@@ -752,7 +759,6 @@ function App() {
         startDate: dayjs().format("YYYY-MM-DD"),
         endDate: undefined,
         notes: "",
-        isPlanned: false,
       });
       setShowExpenseModal(false);
     } catch (err: any) {
@@ -1573,7 +1579,6 @@ function App() {
                       creditAccount: false,
                     });
                     setIsRecurring(true);
-                    const isPlanned = !!recurringExpense.isPlanned;
                     setExpenseForm({
                       categoryId: recurringExpense.categoryId,
                       subcategoryId: recurringExpense.subcategoryId,
@@ -1582,14 +1587,13 @@ function App() {
                       description: recurringExpense.title,
                       currency: "RUB",
                       accountId: undefined,
-                      isPlanned,
+                      isPlanned: !!recurringExpense.isPlanned,
                     });
                     setRecurringFields({
                       frequency: recurringExpense.frequency,
                       startDate: recurringExpense.startDate,
                       endDate: recurringExpense.endDate,
                       notes: recurringExpense.notes || "",
-                      isPlanned,
                     });
                     setEditingExpenseId(recurringId);
                     setShowExpenseModal(true);
@@ -1920,31 +1924,8 @@ function App() {
                   <label style={{ flexDirection: "row", alignItems: "center", gap: "0.5rem" }}>
                     <input
                       type="checkbox"
-                      checked={isRecurring ? (recurringFields.isPlanned || false) : (expenseForm.isPlanned || false)}
-                      onChange={(e) => {
-                        const checked = e.target.checked;
-                        if (isRecurring) {
-                          setRecurringFields((prev) => ({ ...prev, isPlanned: checked }));
-                        } else {
-                          setExpenseForm((prev) => ({ ...prev, isPlanned: checked }));
-                        }
-                      }}
-                    />
-                    <span>Планируемый</span>
-                  </label>
-                  <label style={{ flexDirection: "row", alignItems: "center", gap: "0.5rem" }}>
-                    <input
-                      type="checkbox"
                       checked={isRecurring}
-                      onChange={(e) => {
-                        const checked = e.target.checked;
-                        if (checked) {
-                          setRecurringFields((prev) => ({ ...prev, isPlanned: expenseForm.isPlanned || false }));
-                        } else {
-                          setExpenseForm((prev) => ({ ...prev, isPlanned: recurringFields.isPlanned || false }));
-                        }
-                        setIsRecurring(checked);
-                      }}
+                      onChange={(e) => setIsRecurring(e.target.checked)}
                     />
                     <span>Повторяющийся расход</span>
                   </label>
