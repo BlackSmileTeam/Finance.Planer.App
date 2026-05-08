@@ -170,7 +170,11 @@ export function PlanVsActual() {
     let prevCarryForPlanned = initialCarry;
     allColumns.forEach((col, idx) => {
       const s = col.summary;
-      const actual = s ? prevActual + s.actualIncome - s.actualExpense : prevActual;
+      const actualIncomeForBalance =
+        s == null ? 0 : (s.actualIncome > 0 ? s.actualIncome : s.plannedIncome);
+      const actualExpenseForBalance =
+        s == null ? 0 : (s.actualExpense > 0 ? s.actualExpense : (s.fullPlannedExpense ?? s.plannedExpense));
+      const actual = s ? prevActual + actualIncomeForBalance - actualExpenseForBalance : prevActual;
       const isFirstHalf = col.period === "8–23";
       const planned = isFirstHalf
         ? (s?.closingBalance ?? 0)
