@@ -155,8 +155,10 @@ export const financialApi = {
       params: { year, month },
     }),
   /// <summary>Confirms a credit payment.</summary>
-  confirmCreditPayment: (paymentScheduleId: string) =>
-    apiClient.post(`api/credittransactions/confirm-payment/${paymentScheduleId}`),
+  confirmCreditPayment: (paymentScheduleId: string, amount?: number) =>
+    apiClient.post(`api/credittransactions/confirm-payment/${paymentScheduleId}`, null, {
+      params: { amount },
+    }),
   /// <summary>Gets pending planned expenses.</summary>
   getPendingPlannedExpenses: () =>
     apiClient.get<PendingPlannedTransactionDto[]>("api/expenses/pending-planned"),

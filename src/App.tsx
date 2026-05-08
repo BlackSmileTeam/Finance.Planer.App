@@ -1448,25 +1448,41 @@ function App() {
                 onEdit={handleEditExpense}
                 onDelete={handleDeleteExpense}
                 onConfirmPlanned={async (id: string) => {
-                  // Credit payment: confirm directly without modal
+                  // Credit card payment: confirm with actual amount (can be different from planned)
                   if (id.startsWith("credit-")) {
                     const paymentScheduleId = id.replace("credit-", "");
-                    try {
-                      await financialApi.confirmCreditPayment(paymentScheduleId);
-                      const [refreshedExpenses, refreshedCreditPayments] = await Promise.all([
-                        financialApi.getExpenses(selectedYear, selectedMonth),
-                        financialApi.getCreditPaymentsForMonth(selectedYear, selectedMonth),
-                      ]);
-                      setExpenses(refreshedExpenses.data);
-                      setCreditPaymentsForMonth(refreshedCreditPayments.data);
-                      setNotificationModal({
-                        isOpen: true,
-                        message: "Платеж подтвержден и добавлен в расходы",
-                        type: "success",
-                      });
-                    } catch (err: any) {
-                      setError(err.message);
-                    }
+                    const payment = creditPaymentsForMonth.find((p) => p.paymentScheduleId === paymentScheduleId);
+                    const plannedAmount = payment?.paymentAmount ?? 0;
+                    setConfirmExpenseModalError(null);
+                    setConfirmExpenseAmountModal({
+                      isOpen: true,
+                      expenseId: id,
+                      plannedAmount,
+                      actualAmount: plannedAmount === 0 ? "" : plannedAmount.toFixed(2).replace(".", ","),
+                      isRecurring: false,
+                      onConfirm: async (amount: number) => {
+                        try {
+                          await financialApi.confirmCreditPayment(paymentScheduleId, amount);
+                          const [refreshedExpenses, refreshedCreditPayments] = await Promise.all([
+                            financialApi.getExpenses(selectedYear, selectedMonth),
+                            financialApi.getCreditPaymentsForMonth(selectedYear, selectedMonth),
+                          ]);
+                          setExpenses(refreshedExpenses.data);
+                          setCreditPaymentsForMonth(refreshedCreditPayments.data);
+                          setConfirmExpenseAmountModal((prev) => ({ ...prev, isOpen: false }));
+                          setNotificationModal({
+                            isOpen: true,
+                            message: "Платеж подтвержден и добавлен в расходы",
+                            type: "success",
+                          });
+                        } catch (err: any) {
+                          const msg = err?.response?.data?.message ?? err?.message ?? "Ошибка при подтверждении";
+                          setError(msg);
+                          setConfirmExpenseModalError(msg);
+                          throw err;
+                        }
+                      },
+                    });
                     return;
                   }
                   // Loan payment: confirm and create expense
