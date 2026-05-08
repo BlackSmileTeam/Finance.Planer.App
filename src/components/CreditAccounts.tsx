@@ -59,6 +59,7 @@ export function CreditAccounts() {
   const [transactions, setTransactions] = useState<CreditTransactionDto[]>([]);
   const [isBusy, setIsBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [nameFieldError, setNameFieldError] = useState(false);
@@ -155,7 +156,7 @@ export function CreditAccounts() {
   const handleSubmit = async () => {
     if (!form.name?.trim()) {
       setNameFieldError(true);
-      setError("Введите название счета");
+      setFormError("Введите название счета");
       return;
     }
     setNameFieldError(false);
@@ -164,9 +165,10 @@ export function CreditAccounts() {
       (form.currentBalance ?? 0) > 0 &&
       (!(form.termMonths && form.termMonths > 0) || !form.paymentStartDate)
     ) {
-      setError("Для задолженности по кредитной карте укажите количество платежей и дату первого платежа");
+      setFormError("Для задолженности по кредитной карте укажите количество платежей и дату первого платежа");
       return;
     }
+    setFormError(null);
 
     setIsBusy(true);
     try {
@@ -208,10 +210,10 @@ export function CreditAccounts() {
       });
       setEditingId(null);
       setShowModal(false);
-      setError(null);
+      setFormError(null);
       setNameFieldError(false);
     } catch (err: any) {
-      setError(err.message);
+      setFormError(err.message);
     } finally {
       setIsBusy(false);
     }
@@ -232,6 +234,7 @@ export function CreditAccounts() {
       notes: account.notes || "",
     });
     setError(null);
+    setFormError(null);
     setEditingId(account.id);
     setShowModal(true);
   };
@@ -259,6 +262,7 @@ export function CreditAccounts() {
   const handleNewClick = () => {
     setEditingId(null);
     setError(null);
+    setFormError(null);
     setNameFieldError(false);
     setForm({
       name: "",
@@ -282,7 +286,7 @@ export function CreditAccounts() {
           <h2>Кредитные счета</h2>
           <button onClick={handleNewClick}>Добавить кредитный счет</button>
         </div>
-        {error && <div className="app__error">⚠️ {error}</div>}
+        {!showModal && error && <div className="app__error">⚠️ {error}</div>}
         <div className="panel__content">
           {accounts.length === 0 ? (
             <div style={{ padding: "2rem", textAlign: "center", color: "#94a3b8" }}>
@@ -370,14 +374,14 @@ export function CreditAccounts() {
       </section>
 
       {showModal && (
-        <div className="modal-overlay" onClick={() => { setShowModal(false); setError(null); setNameFieldError(false); }}>
+        <div className="modal-overlay" onClick={() => { setShowModal(false); setFormError(null); setNameFieldError(false); }}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal__header">
               <h2>{editingId ? "Редактировать" : "Добавить"} кредитный счет</h2>
-              <button onClick={() => { setShowModal(false); setError(null); setNameFieldError(false); }}>✕</button>
+              <button onClick={() => { setShowModal(false); setFormError(null); setNameFieldError(false); }}>✕</button>
             </div>
             <div className="modal__content">
-              {error && <div className="app__error" style={{ marginBottom: "1rem" }}>⚠️ {error}</div>}
+              {formError && <div className="app__error" style={{ marginBottom: "1rem" }}>⚠️ {formError}</div>}
               <div className="form">
                 <label>
                   Название счета
@@ -576,7 +580,7 @@ export function CreditAccounts() {
                   <button onClick={handleSubmit} disabled={isBusy}>
                     {editingId ? "Обновить" : "Создать"}
                   </button>
-                  <button onClick={() => { setShowModal(false); setError(null); setNameFieldError(false); }}>Отмена</button>
+                  <button onClick={() => { setShowModal(false); setFormError(null); setNameFieldError(false); }}>Отмена</button>
                 </div>
               </div>
             </div>
