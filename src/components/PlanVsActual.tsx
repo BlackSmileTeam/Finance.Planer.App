@@ -160,8 +160,14 @@ export function PlanVsActual() {
 
   const balanceByColumn = useMemo(() => {
     const map = new Map<number, { closingBalance: number; actualBalance: number; plannedBalance: number }>();
-    let prevActual = 0;
-    let prevCarryForPlanned = 0;
+    // Start from backend carry-over for the first visible column so actual balance
+    // reflects the residual from previous month/year.
+    const initialCarry =
+      allColumns.find((c) => c.summary)?.summary?.carryOver ??
+      allColumns.find((c) => c.summary)?.summary?.actualBalance ??
+      0;
+    let prevActual = initialCarry;
+    let prevCarryForPlanned = initialCarry;
     allColumns.forEach((col, idx) => {
       const s = col.summary;
       const actual = s ? prevActual + s.actualIncome - s.actualExpense : prevActual;
