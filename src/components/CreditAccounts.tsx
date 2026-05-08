@@ -41,6 +41,19 @@ function getMonthWord(count: number): string {
   return "месяцев";
 }
 
+function calculateMonthlyPayment(
+  principal: number,
+  termMonths: number,
+  annualInterestRate?: number
+): number {
+  if (principal <= 0 || termMonths <= 0) return 0;
+  const monthlyRate = (annualInterestRate ?? 0) / 100 / 12;
+  if (monthlyRate <= 0) return Number((principal / termMonths).toFixed(2));
+  const factor = Math.pow(1 + monthlyRate, termMonths);
+  const payment = (principal * monthlyRate * factor) / (factor - 1);
+  return Number(payment.toFixed(2));
+}
+
 export function CreditAccounts() {
   const [accounts, setAccounts] = useState<CreditAccountDto[]>([]);
   const [transactions, setTransactions] = useState<CreditTransactionDto[]>([]);
@@ -77,8 +90,33 @@ export function CreditAccounts() {
     form.accountType === "CreditCard" &&
     (form.currentBalance ?? 0) > 0 &&
     (form.termMonths ?? 0) > 0
-      ? Number(((form.currentBalance ?? 0) / (form.termMonths ?? 1)).toFixed(2))
+      ? calculateMonthlyPayment(form.currentBalance ?? 0, form.termMonths ?? 1, form.interestRate)
       : undefined;
+
+  const cardOverpayment =
+    calculatedCardMonthlyPayment != null &&
+    (form.termMonths ?? 0) > 0 &&
+    (form.currentBalance ?? 0) > 0
+      ? Number((calculatedCardMonthlyPayment * (form.termMonths ?? 0) - (form.currentBalance ?? 0)).toFixed(2))
+      : 0;
+
+  const cardLastPaymentDate =
+    form.paymentStartDate && (form.termMonths ?? 0) > 0
+      ? dayjs(form.paymentStartDate).add((form.termMonths ?? 1) - 1, "month").format("DD.MM.YYYY")
+      : null;
+
+  const loanOverpayment =
+    form.accountType === "Loan" &&
+    (form.totalAmount ?? 0) > 0 &&
+    (form.monthlyPayment ?? 0) > 0 &&
+    (form.termMonths ?? 0) > 0
+      ? Number(((form.monthlyPayment ?? 0) * (form.termMonths ?? 0) - (form.totalAmount ?? 0)).toFixed(2))
+      : 0;
+
+  const loanLastPaymentDate =
+    form.accountType === "Loan" && form.paymentStartDate && (form.termMonths ?? 0) > 0
+      ? dayjs(form.paymentStartDate).add((form.termMonths ?? 1) - 1, "month").format("DD.MM.YYYY")
+      : null;
 
   useEffect(() => {
     loadAccounts();
@@ -409,6 +447,14 @@ export function CreditAccounts() {
                             step="0.01"
                           />
                         </label>
+                        <div style={{ fontSize: "0.85rem", color: "#94a3b8" }}>
+                          {cardLastPaymentDate ? (
+                            <div>Последний платеж (прогноз): {cardLastPaymentDate}</div>
+                          ) : null}
+                          <div>
+                            Переплата (прогноз): {cardOverpayment > 0 ? cardOverpayment.toFixed(2) : "0.00"} ₽
+                          </div>
+                        </div>
                       </>
                     )}
                   </>
@@ -456,6 +502,16 @@ export function CreditAccounts() {
                         required
                       />
                     </label>
+                    {(form.termMonths ?? 0) > 0 && (form.monthlyPayment ?? 0) > 0 && (
+                      <div style={{ fontSize: "0.85rem", color: "#94a3b8" }}>
+                        {loanLastPaymentDate ? (
+                          <div>Последний платеж (прогноз): {loanLastPaymentDate}</div>
+                        ) : null}
+                        <div>
+                          Переплата (прогноз): {loanOverpayment > 0 ? loanOverpayment.toFixed(2) : "0.00"} ₽
+                        </div>
+                      </div>
+                    )}
                   </>
                 )}
                 <label>
