@@ -6,8 +6,8 @@ import { ExpenseItem } from "./ExpenseItem";
 type ExpenseListItem = 
   | (ExpenseDto & { date: string; isRecurring: false })
   | (Omit<RecurringExpenseDto, "id"> & { id: string; date: string; isRecurring: true; isPlanned?: boolean; recurringId?: string })
-  | { id: string; date: string; categoryId: string; categoryName: string; subcategoryId?: string; subcategoryName?: string; amount: number; isRecurring: false; isPlanned: true; isCreditPayment: true; creditAccountType?: "CreditCard" | "Loan" }
-  | { id: string; date: string; categoryId: string; categoryName: string; subcategoryId?: string; subcategoryName?: string; amount: number; isRecurring: false; isPlanned: true; isLoanPayment: true };
+  | { id: string; date: string; categoryId: string; categoryName: string; subcategoryId?: string; subcategoryName?: string; amount: number; isRecurring: false; isPlanned: true; isCreditPayment: true; creditAccountType?: "CreditCard" | "Loan"; hasScheduledDay?: boolean }
+  | { id: string; date: string; categoryId: string; categoryName: string; subcategoryId?: string; subcategoryName?: string; amount: number; isRecurring: false; isPlanned: true; isLoanPayment: true; hasScheduledDay?: boolean };
 
 function getCategoryIcon(categories: CategoryDto[], categoryId: string, subcategoryId?: string | null): string {
   const cat = categories.find((c) => c.id === categoryId);
@@ -272,6 +272,7 @@ export function ExpenseList({
         isPlanned: true,
         isCreditPayment: true as const,
         creditAccountType: p.creditAccountType ?? "CreditCard",
+        hasScheduledDay: p.scheduledDay != null,
       }));
 
     // Convert loan payments to expense list format (плановые платежи по кредиту — Loan)
@@ -289,6 +290,7 @@ export function ExpenseList({
         isRecurring: false as const,
         isPlanned: true,
         isLoanPayment: true as const,
+        hasScheduledDay: p.scheduledDay != null,
       }));
 
     // Combine expenses, recurring expenses, credit payments, and loan payments
@@ -308,15 +310,15 @@ export function ExpenseList({
     ];
 
     // Filter by period (1–15 or 16–end) when specified.
-    // Платежи по кредиту/займу — помесячные, без привязки к дню полумесяца; всегда включаем их в «Планируемые расходы» за месяц.
+    // Include credit/loan items in both halves only when schedule day is unknown.
     if (periodStartDate && periodEndDate) {
       const periodStart = dayjs(periodStartDate).startOf("day");
       const periodEnd = dayjs(periodEndDate).endOf("day");
-      const isPlannedCreditOrLoan = (item: ExpenseListItem) =>
+      const isCreditOrLoanItem = (item: ExpenseListItem) =>
         !item.isRecurring &&
         (("isCreditPayment" in item && item.isCreditPayment) || ("isLoanPayment" in item && item.isLoanPayment));
       combined = combined.filter((item) => {
-        if (isPlannedCreditOrLoan(item)) return true;
+        if (isCreditOrLoanItem(item) && !("hasScheduledDay" in item && item.hasScheduledDay)) return true;
         const d = dayjs(item.date);
         return !d.isBefore(periodStart) && !d.isAfter(periodEnd);
       });
