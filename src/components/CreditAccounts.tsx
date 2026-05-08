@@ -73,6 +73,13 @@ export function CreditAccounts() {
     notes: "",
   });
 
+  const calculatedCardMonthlyPayment =
+    form.accountType === "CreditCard" &&
+    (form.currentBalance ?? 0) > 0 &&
+    (form.termMonths ?? 0) > 0
+      ? Number(((form.currentBalance ?? 0) / (form.termMonths ?? 1)).toFixed(2))
+      : undefined;
+
   useEffect(() => {
     loadAccounts();
   }, []);
@@ -100,6 +107,14 @@ export function CreditAccounts() {
       return;
     }
     setNameFieldError(false);
+    if (
+      form.accountType === "CreditCard" &&
+      (form.currentBalance ?? 0) > 0 &&
+      (!(form.termMonths && form.termMonths > 0) || !form.paymentStartDate)
+    ) {
+      setError("Для задолженности по кредитной карте укажите количество платежей и дату первого платежа");
+      return;
+    }
 
     setIsBusy(true);
     try {
@@ -109,7 +124,7 @@ export function CreditAccounts() {
         const updateRequest: UpdateCreditAccountRequest = {
           name: form.name,
           creditLimit: form.creditLimit,
-          monthlyPayment: form.monthlyPayment,
+          monthlyPayment: form.accountType === "CreditCard" ? calculatedCardMonthlyPayment : form.monthlyPayment,
           totalAmount: form.totalAmount,
           termMonths: form.termMonths,
           paymentStartDate: form.paymentStartDate,
@@ -122,6 +137,7 @@ export function CreditAccounts() {
       } else {
         await financialApi.createCreditAccount({
           ...form,
+          monthlyPayment: form.accountType === "CreditCard" ? calculatedCardMonthlyPayment : form.monthlyPayment,
           currentBalance: form.currentBalance ?? 0,
         });
       }
@@ -264,6 +280,12 @@ export function CreditAccounts() {
                         <span>
                           Осталось оплатить: {getRemainingToPay(account.id, transactions).toFixed(2)} ₽
                         </span>
+                        {account.termMonths && (
+                          <span>Погашение: {account.termMonths} {getMonthWord(account.termMonths)}</span>
+                        )}
+                        {account.paymentStartDate && (
+                          <span>Первый платеж: {dayjs(account.paymentStartDate).format("DD.MM.YYYY")}</span>
+                        )}
                       </>
                     )}
                     {typeof account.interestRate === "number" && (
@@ -328,16 +350,68 @@ export function CreditAccounts() {
                   </select>
                 </label>
                 {form.accountType === "CreditCard" ? (
-                  <label>
-                    Кредитный лимит (необязательно)
-                    <input
-                      type="number"
-                      value={form.creditLimit || ""}
-                      onChange={(e) => setForm({ ...form, creditLimit: e.target.value ? Number(e.target.value) : undefined })}
-                      min="0"
-                      step="0.01"
-                    />
-                  </label>
+                  <>
+                    <label>
+                      Кредитный лимит (необязательно)
+                      <input
+                        type="number"
+                        value={form.creditLimit || ""}
+                        onChange={(e) => setForm({ ...form, creditLimit: e.target.value ? Number(e.target.value) : undefined })}
+                        min="0"
+                        step="0.01"
+                      />
+                    </label>
+                    <label>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem" }}>
+                        Задолженность
+                        <HintTooltip
+                          text="Текущая задолженность по кредитной карте. Если больше нуля, нужно указать количество и дату первого платежа."
+                          ariaLabel="Подсказка по задолженности"
+                        />
+                      </span>
+                      <input
+                        type="number"
+                        value={form.currentBalance ?? ""}
+                        onChange={(e) => setForm({ ...form, currentBalance: e.target.value !== "" ? Number(e.target.value) : 0 })}
+                        step="0.01"
+                        placeholder="0"
+                      />
+                    </label>
+                    {(form.currentBalance ?? 0) > 0 && (
+                      <>
+                        <label>
+                          Количество платежей
+                          <input
+                            type="number"
+                            value={form.termMonths || ""}
+                            onChange={(e) => setForm({ ...form, termMonths: e.target.value ? Number(e.target.value) : undefined })}
+                            min="1"
+                            step="1"
+                            required
+                          />
+                        </label>
+                        <label>
+                          Дата первого платежа
+                          <input
+                            type="date"
+                            value={form.paymentStartDate || ""}
+                            onChange={(e) => setForm({ ...form, paymentStartDate: e.target.value || undefined })}
+                            required
+                          />
+                        </label>
+                        <label>
+                          Ежемесячный платеж (авторасчет)
+                          <input
+                            type="number"
+                            value={calculatedCardMonthlyPayment ?? ""}
+                            readOnly
+                            disabled
+                            step="0.01"
+                          />
+                        </label>
+                      </>
+                    )}
+                  </>
                 ) : (
                   <>
                     <label>
@@ -394,22 +468,24 @@ export function CreditAccounts() {
                     step="0.01"
                   />
                 </label>
-                <label>
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem" }}>
-                    Текущий баланс (задолженность)
-                    <HintTooltip
-                      text="Задайте текущую задолженность по счёту, чтобы вести расчёты с этого момента и устранить нестыковки."
-                      ariaLabel="Подсказка по текущей задолженности"
+                {form.accountType !== "CreditCard" && (
+                  <label>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem" }}>
+                      Текущий баланс (задолженность)
+                      <HintTooltip
+                        text="Задайте текущую задолженность по счёту, чтобы вести расчёты с этого момента и устранить нестыковки."
+                        ariaLabel="Подсказка по текущей задолженности"
+                      />
+                    </span>
+                    <input
+                      type="number"
+                      value={form.currentBalance ?? ""}
+                      onChange={(e) => setForm({ ...form, currentBalance: e.target.value !== "" ? Number(e.target.value) : 0 })}
+                      step="0.01"
+                      placeholder="0"
                     />
-                  </span>
-                  <input
-                    type="number"
-                    value={form.currentBalance ?? ""}
-                    onChange={(e) => setForm({ ...form, currentBalance: e.target.value !== "" ? Number(e.target.value) : 0 })}
-                    step="0.01"
-                    placeholder="0"
-                  />
-                </label>
+                  </label>
+                )}
                 <label>
                   Заметки
                   <textarea
