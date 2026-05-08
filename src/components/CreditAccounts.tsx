@@ -93,6 +93,11 @@ export function CreditAccounts() {
       ? calculateMonthlyPayment(form.currentBalance ?? 0, form.termMonths ?? 1, form.interestRate)
       : undefined;
 
+  const cardTotalPayments =
+    calculatedCardMonthlyPayment != null && (form.termMonths ?? 0) > 0
+      ? Number((calculatedCardMonthlyPayment * (form.termMonths ?? 0)).toFixed(2))
+      : 0;
+
   const cardOverpayment =
     calculatedCardMonthlyPayment != null &&
     (form.termMonths ?? 0) > 0 &&
@@ -105,12 +110,21 @@ export function CreditAccounts() {
       ? dayjs(form.paymentStartDate).add((form.termMonths ?? 1) - 1, "month").format("DD.MM.YYYY")
       : null;
 
+  const loanPrincipal = (form.currentBalance ?? 0) > 0 ? (form.currentBalance ?? 0) : (form.totalAmount ?? 0);
+
   const loanOverpayment =
     form.accountType === "Loan" &&
-    (form.totalAmount ?? 0) > 0 &&
+    loanPrincipal > 0 &&
     (form.monthlyPayment ?? 0) > 0 &&
     (form.termMonths ?? 0) > 0
-      ? Number(((form.monthlyPayment ?? 0) * (form.termMonths ?? 0) - (form.totalAmount ?? 0)).toFixed(2))
+      ? Number(((form.monthlyPayment ?? 0) * (form.termMonths ?? 0) - loanPrincipal).toFixed(2))
+      : 0;
+
+  const loanTotalPayments =
+    form.accountType === "Loan" &&
+    (form.monthlyPayment ?? 0) > 0 &&
+    (form.termMonths ?? 0) > 0
+      ? Number(((form.monthlyPayment ?? 0) * (form.termMonths ?? 0)).toFixed(2))
       : 0;
 
   const loanLastPaymentDate =
@@ -448,11 +462,14 @@ export function CreditAccounts() {
                           />
                         </label>
                         <div style={{ fontSize: "0.85rem", color: "#94a3b8" }}>
+                          <div>
+                            Сумма всех платежей (прогноз): {cardTotalPayments.toFixed(2)} ₽
+                          </div>
                           {cardLastPaymentDate ? (
                             <div>Последний платеж (прогноз): {cardLastPaymentDate}</div>
                           ) : null}
                           <div>
-                            Переплата (прогноз): {cardOverpayment > 0 ? cardOverpayment.toFixed(2) : "0.00"} ₽
+                            Переплата от задолженности (прогноз): {cardOverpayment > 0 ? cardOverpayment.toFixed(2) : "0.00"} ₽
                           </div>
                         </div>
                       </>
@@ -504,11 +521,17 @@ export function CreditAccounts() {
                     </label>
                     {(form.termMonths ?? 0) > 0 && (form.monthlyPayment ?? 0) > 0 && (
                       <div style={{ fontSize: "0.85rem", color: "#94a3b8" }}>
+                        <div>
+                          База расчета: {(loanPrincipal || 0).toFixed(2)} ₽ (текущая задолженность, если указана)
+                        </div>
+                        <div>
+                          Сумма всех платежей (прогноз): {loanTotalPayments.toFixed(2)} ₽
+                        </div>
                         {loanLastPaymentDate ? (
                           <div>Последний платеж (прогноз): {loanLastPaymentDate}</div>
                         ) : null}
                         <div>
-                          Переплата (прогноз): {loanOverpayment > 0 ? loanOverpayment.toFixed(2) : "0.00"} ₽
+                          Переплата от задолженности (прогноз): {loanOverpayment > 0 ? loanOverpayment.toFixed(2) : "0.00"} ₽
                         </div>
                       </div>
                     )}
